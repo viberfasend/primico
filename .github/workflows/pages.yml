@@ -1,51 +1,93 @@
-name: Deploy landing page
+name: Deploy site and docs
 
-# Publishes the static site in `site/` to GitHub Pages — the one other workflow besides ci.yml
-# that runs on its own, and for the same reason: a Linux runner on a public repository is free,
-# and a site that only deploys when someone remembers to click is a site that goes stale. It
-# runs on pushes to main that touch the site (or this file), and can be dispatched by hand.
+# Publishes GitHub Pages: the static landing page in `site/` at the root, and the documentation
+# site built from `docs/` by `docs-site/` (Astro Starlight) under `/docs/`. This is the one other
+# workflow besides ci.yml that runs on its own, for the same reason: a Linux runner on a public
+# repository is free, and a site that only deploys when someone remembers to click is a site
+# that goes stale.
 #
-# The site is plain HTML with no build step: what is in `site/` is what is served.
+# - A push to main that touches either site builds and deploys both.
+# - A pull request that touches the docs builds them without deploying, so a broken link (the
+#   build's link check fails on one) is caught before merge rather than after.
+#
+# The landing page has no build step: what is in `site/` is what is served.
 
 on:
   push:
     branches: [main]
     paths:
       - 'site/**'
+      - 'docs/**'
+      - 'docs-site/**'
+      - '.github/workflows/pages.yml'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'docs-site/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-# One deployment at a time, and never cancel one in flight.
-concurrency:
-  group: pages
-  cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: Deploy
+  build:
+    name: Build
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 10
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
     steps:
       - name: Check out
         uses: actions/checkout@v4
+        with:
+          # Starlight's "last updated" date comes from each page's git history.
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: docs-site/package-lock.json
+
+      - name: Build the docs (and check every link)
+        working-directory: docs-site
+        run: |
+          npm ci
+          npm run build
+
+      - name: Assemble the Pages artefact
+        run: |
+          mkdir -p _pages
+          cp -r site/. _pages/
+          cp -r docs-site/dist _pages/docs
 
       - name: Configure Pages
+        if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
 
       - name: Upload the site
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: _pages
 
+  deploy:
+    name: Deploy
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    # One deployment at a time, and never cancel one in flight.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

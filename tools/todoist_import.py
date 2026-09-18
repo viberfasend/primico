@@ -4,7 +4,7 @@
 Todoist exports one CSV per project ("Garten [6g62GH268rQjFQ92].csv"). This script reads any
 number of those files — or a whole export directory — and writes a single
 `{"format":"cadence.backup","version":2,...}` document, the published contract
-`core/.../domain/backup/BackupCodec.kt` reads. Import it in the app under Settings -> Backup;
+`core/.../domain/backup/BackupCodec.kt` reads. Import it in the app under Settings -> Data -> Import backup;
 importing merges, so nothing already on the device is lost.
 
 **Everything lands in one staging project, "Import <today>".** An import is a pile to sort, not
@@ -1061,7 +1061,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             write_document(os.path.join(directory, name), document)
             print(f"  {name}: {stats.tasks + stats.subtasks} task(s)")
         print(f"wrote {len(documents)} file(s) to {directory}/ — import them under "
-              f"Settings -> Backup, one, several or all at once")
+              f"Settings -> Data -> Import backup, one, several or all at once")
         return 0
 
     document, stats = convert(paths, options, now, ref, due_index=due_index)
@@ -1071,7 +1071,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     write_document(options.out, document)
-    print(f"wrote {options.out} — import it under Settings -> Backup")
+    print(f"wrote {options.out} — import it under Settings -> Data -> Import backup")
     return 0
 
 

@@ -1,5 +1,6 @@
-# Self-hosting sync
-
+---
+title: "Self-hosting sync"
+---
 Primico is local-first: every device keeps its own SQLite database and is fully usable signed
 out. Syncing your devices is optional, and the server half is a [Neon](https://neon.tech)
 Postgres project **you** own — there is no Primico-operated server, and the published builds are

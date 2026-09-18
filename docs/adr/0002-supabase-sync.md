@@ -1,5 +1,9 @@
-# ADR 0002 — Sync through Supabase instead of a synced folder
-
+---
+title: "ADR 0002 — Sync through Supabase instead of a synced folder"
+sidebar:
+  label: "0002 · Sync protocol (Supabase era)"
+  order: 2
+---
 **Status:** accepted; superseded in part by [ADR 0005](0005-neon-sync.md) (2026-08-25), which
 moves the backend to Neon: decision 6 (supabase-kt) and decision 12 (realtime) are replaced, the
 server sweep of the GC phase is client-driven now, and decision 2's account lives in Neon Auth.

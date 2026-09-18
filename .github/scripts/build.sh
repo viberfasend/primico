@@ -11,7 +11,7 @@
 # Usage: bash .github/scripts/build.sh [target …] [option …]
 #
 # Targets, defaulting to `all`:
-#   apk       assembleDebug + assembleRelease, staged as cadence-{debug,release}.apk
+#   apk       assembleDebug + assembleRelease, staged as primico-{debug,release}.apk
 #   deb rpm   Linux packages       (jpackage; needs fakeroot / rpmbuild)
 #   dmg msi   macOS / Windows      (jpackage; msi needs the WiX Toolset)
 #   tar       the Linux app image as primico-linux-x64.tar.gz

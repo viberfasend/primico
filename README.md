@@ -14,7 +14,7 @@ unless you point it at your own.
 [![Kotlin Multiplatform](https://img.shields.io/badge/Kotlin-Multiplatform-7F52FF.svg)](https://kotlinlang.org/docs/multiplatform.html)
 [![Compose Multiplatform](https://img.shields.io/badge/Compose-Multiplatform-4285F4.svg)](https://www.jetbrains.com/compose-multiplatform/)
 
-**[viberfasend.github.io/primico](https://viberfasend.github.io/primico/)**
+**[viberfasend.github.io/primico](https://viberfasend.github.io/primico/)** · **[Developer docs](https://viberfasend.github.io/primico/docs/)**
 
 </div>
 
@@ -91,7 +91,7 @@ build installs over the old one and keeps your tasks.
 >
 > If you still have an install from **before 3.0** (signed with the debug key), Android will
 > refuse the update with *"App not installed"*: the signing key changed. Export a backup first
-> (Settings → Backup), uninstall once, install again and import.
+> (Settings → Data → Export backup), uninstall once, install again and import.
 
 A debug-signed build sits beside it as `primico-debug.apk`. The two have different application
 IDs and install side by side.
@@ -128,9 +128,9 @@ corrected by tapping it. A bare time defaults the date to today.
 
 | Platform | Location |
 |---|---|
-| Android | the app's private storage (`Settings → Backup` exports it) |
-| Linux | `$XDG_DATA_HOME/cadence/` (default `~/.local/share/cadence/`) |
-| macOS | `~/Library/Application Support/Cadence/` |
+| Android | the app's private storage (`Settings → Data → Export backup` exports it) |
+| Linux | `$XDG_DATA_HOME/primico/` (default `~/.local/share/primico/`) |
+| macOS | `~/Library/Application Support/Primico/` |
 | Windows | `%APPDATA%\Primico\` |
 
 The directory holds the SQLite database, attachments (content-addressed by SHA-256), and on the
@@ -151,8 +151,8 @@ A build with no sync endpoint configured simply hides sign-in. Everything else w
 
 ## Coming from Todoist
 
-Export your Todoist data (Settings → Backup, one CSV per project), convert the folder with
-[`tools/todoist_import.py`](tools/README.md) and import the result under **Settings → Backup**:
+Export your Todoist data (Todoist's Settings → Backup, one CSV per project), convert the folder with
+[`tools/todoist_import.py`](tools/README.md) and import the result under **Settings → Data → Import backup**:
 
 ```bash
 python3 tools/todoist_import.py ~/Downloads/"Todoist backup 2026-08-12 2248 UTC"
@@ -166,13 +166,13 @@ come across. Importing merges, so re-running it updates rather than duplicates.
 ## Building from source
 
 **Prerequisites:** JDK 17. For the Android app additionally the Android SDK with `compileSdk`
-35 (`ANDROID_HOME` set, or a `local.properties` with `sdk.dir`). The desktop app needs nothing
+36 (`ANDROID_HOME` set, or a `local.properties` with `sdk.dir`). The desktop app needs nothing
 beyond the JDK; native installers additionally need the OS's own packaging tool (`fakeroot`
 for `.deb`, `rpmbuild` for `.rpm`, WiX on Windows).
 
 ```bash
 git clone https://github.com/viberfasend/primico.git
-cd cadence
+cd primico
 
 ./gradlew :app-desktop:run                    # launch the desktop app from source
 ./gradlew assembleDebug                       # app-android/build/outputs/apk/debug/app-android-debug.apk
@@ -221,8 +221,16 @@ app-android/   the Android shell: navigation, alarms, widgets, SAF, SharedPrefer
 app-desktop/   the JVM shell: window, sidebar, shortcuts, tray, JSON settings, jpackage
 neon/          the server half — SQL migrations, migrate.sh, db.sh and a docker-based test
 tools/         the Todoist converter
-docs/adr/      architecture decision records — read these before changing anything structural
+docs/          the developer documentation — tutorials, how-to guides, concepts, reference,
+               and the architecture decision records in docs/adr/
+docs-site/     the Astro Starlight project that builds docs/ into the documentation site
 ```
+
+**Start with the [developer docs](https://viberfasend.github.io/primico/docs/)** (or
+[`docs/`](docs/README.md) right here on GitHub): a five-minute
+[quickstart](docs/tutorials/quickstart.md), [a tour of the code](docs/tutorials/tour-of-the-code.md),
+[the architecture at a glance](docs/concepts/architecture.md), and reference pages for the schema,
+the backup format, the sync wire and the quick-add grammar.
 
 [`CLAUDE.md`](CLAUDE.md) is the long-form guide to the codebase, written for AI coding agents
 and just as useful to humans: the invariants, the gotchas and the reasons behind them.

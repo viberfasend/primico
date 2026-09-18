@@ -84,9 +84,10 @@ per target, stages the APKs under the fixed names the download URLs point at, an
 with a warning when `all`/`desktop` implied it and is a hard error when it was named outright.
 
 `:core`'s and `:ui`'s tests are each one source set compiled twice: `jvmTest` is the desktop
-compilation and `testDebugUnitTest` the Android one. `testDebugUnitTest` alone therefore misses
-nothing in either module today, but it also never exercises the JVM target the desktop app is
-built on, so CI names both. Storage lives entirely in `:core` now (ADR 0001, phase 2), so
+compilation and `testDebugUnitTest` the Android one. They are not interchangeable:
+`testDebugUnitTest` never exercises the JVM target the desktop app is built on, and the classes
+in `core/src/jvmTest` (`CadenceCoreTest`, `DatabaseDriverFactoryTest`) and `ui/src/jvmTest` (the
+ViewModel tests) run under `jvmTest` only — so CI names both. Storage lives entirely in `:core` now (ADR 0001, phase 2), so
 `:app-android` has no unit tests of its own left — `RecurrenceCodecTest` and the SQLDelight store
 tests moved with it.
 
@@ -99,10 +100,10 @@ so the five-second undo window costs no wall clock). The ViewModel tests drive a
 faked (`Fakes.kt`). The ViewModel runs on `runTest`'s
 `backgroundScope` rather than on the test coroutine — its `init` starts collectors that never
 finish, and `runTest` waits for its own children — and the test subscribes to `state`, because
-`stateIn(WhileSubscribed)` keeps the upstream cold until something reads it. The ViewModel test
-sits in `jvmTest` rather than `jvmSharedTest`, alone among them — a placement supabase-kt used
-to force (its client needed an Android runtime the unit-test JVM lacks) and the hand-rolled Ktor
-stack no longer does; it simply has not moved. No screen is tested: composables
+`stateIn(WhileSubscribed)` keeps the upstream cold until something reads it. The ViewModel tests
+(`CadenceViewModelCrudTest`, `CadenceViewModelUndoTest`) sit in `jvmTest` rather than
+`jvmSharedTest` — a placement supabase-kt used to force (its client needed an Android runtime the
+unit-test JVM lacks) and the hand-rolled Ktor stack no longer does; they simply have not moved. No screen is tested: composables
 would need the Compose test runtime, and none of the rules worth pinning live in one.
 
 `:app-desktop` is a plain JVM module, so its task is `:app-desktop:test`. It covers
@@ -151,7 +152,7 @@ a hook before `run`, which is how the #114 "undo leaves a settled delete hidden"
 into one `storeTransaction.run { … }` call with nothing left inside it going through the ordinary
 store ports (see the `StoreTransaction` note above).
 
-JDK 17, compileSdk/targetSdk 35, minSdk 26. No lint or format task is wired up.
+JDK 17, compileSdk/targetSdk 36, minSdk 26. No lint or format task is wired up.
 
 The server half of sync is `neon/migrations/*.sql` ([ADR 0005](docs/adr/0005-neon-sync.md)): four
 tables, forced RLS over `auth.user_id()`, the stale-write trigger, `migrate.sh`, `db.sh` and a
@@ -204,7 +205,7 @@ a scope that survives a rotation and a moment to stop. Both are constructor para
 creates and keeps alive for the process, and `Window`'s `onCloseRequest`.
 
 **Wiring** is hand-rolled in an `AppContainer` class per shell, built on top of `:core`'s
-`CadenceCore` — the database, the blob store, the eight-argument `CadenceRepository` and the
+`CadenceCore` — the database, the blob store, the `CadenceRepository` and the
 `CadenceSyncEngine` over them, and the application scope all three run on. Every store a feature
 adds used to mean a line in both `AppContainer`s; it is now a line in `CadenceCore` alone, since
 opening the database is the one genuinely platform-specific step left (`DatabaseDriverFactory`
@@ -265,14 +266,15 @@ single signature changing. `assembleDebug` compiling is therefore *not* proof An
 unaffected by a change to either — the defaults are what it runs.
 
 **Storage is a port, not a layer, and it lives in `:core` entirely (ADR 0001, phase 2).**
-`CadenceRepository` reaches storage through three interfaces in `data/Stores.kt` that speak `Task`
+`CadenceRepository` reaches storage through the store interfaces in `data/Stores.kt` (`TaskStore`,
+`ProjectStore`, `SectionStore`, `TagStore`, `BackupStore`, `AttachmentStore`) that speak `Task`
 and `Project` rather than rows and carry no database annotation. `data/db/SqlDelightStores.kt`
 implements them over the SQLDelight schema in `data/db/*.sq`, and every row↔domain conversion
 lives there — epoch day/second-of-day/epoch-millis at the boundary, nowhere else. This is
-possible because SQLDelight itself is multiplatform, unlike Room: `:app-android` supplies the
-`DatabaseDriverFactory` actual (`AndroidSqliteDriver`, needing a `Context`) and `:app-desktop`
-the `jvmMain` one (`JdbcSqliteDriver`, needing `PlatformDirs.dataDir()`) — both open the same
-schema; see "Persistence" below.
+possible because SQLDelight itself is multiplatform, unlike Room: `:core`'s `androidMain` holds the
+`DatabaseDriverFactory` actual (`AndroidSqliteDriver`, needing a `Context`) and its `jvmMain`
+the desktop one (`JdbcSqliteDriver`, needing `PlatformDirs.dataDir()`) — each shell constructs
+its own, and both open the same schema; see "Persistence" below.
 
 `TaskStore.completeIfOpen` and `reopenIfDone` return whether *this* call changed the row, and an
 implementation must decide that inside the store — in SQL, in a lock, in whatever it has — never
@@ -450,7 +452,7 @@ than reaching for `!!`.
 - **Subtasks are tasks with a `parentId`**, nested exactly one level deep — `addSubtask` files a
   step added under a subtask next to it rather than starting a third level. A parent and its
   steps share a project (`moveToProject` moves both), deleting a task deletes its steps
-  (`deleteWithSubtasks`), and finishing a parent finishes whatever is still open beneath it. A
+  (`TaskStore.tombstoneWithSubtasks`), and finishing a parent finishes whatever is still open beneath it. A
   recurring parent hands its checklist to the next occurrence unticked, with the subtask due
   dates shifted by the same span as the parent's. Which lists show them is a deliberate split:
   the container views (Inbox, projects) use `CadenceUiState.rootTasks()` because the parent
@@ -604,7 +606,7 @@ than reaching for `!!`.
   sees the tasks that still exist, so it cannot cancel one that is already gone.
 - **The danger zone is the only wipe, and it is still a tombstone.** Settings → Danger zone →
   *Delete all data* runs `CadenceRepository.deleteEverything()`, which stamps `deletedAt` on every
-  task and every project (`taskRow.tombstoneAll`, `projectRow.tombstoneAllRows`) rather than
+  task, section, tag and project (`taskRow.tombstoneAll`, `projectRow.tombstoneAllRows`, …) rather than
   dropping rows — a `DELETE` would leave the other device with rows it has never seen deleted, and
   the next pull would hand the whole list back. Three gates, deliberately: the button, a dialog
   naming both counts, and the ordinary `UNDO_WINDOW` the write is deferred by, so the snackbar's
@@ -618,7 +620,7 @@ than reaching for `!!`.
   it costs no transaction at all. `CadenceViewModel` only supplies the `commit` lambda —
   `commitPendingDelete`, the repository write and cancelling reminders, with the write itself
   ticking `repository.localWrites` (and so arming sync) on its own — and the
-  three call sites (`deleteTask`, `deleteProject`, `wipeEverything`) that hand `UndoSlot.offer` a
+  four call sites (`deleteTask`, `deleteCompletedInboxTasks`, `deleteProject`, `wipeEverything`) that hand `UndoSlot.offer` a
   fresh `UndoAction`; the *when* is entirely `UndoSlot`'s. Two rules fall out of there being *one*
   pending action but possibly more than one set of held ids (#114), and both are pinned in
   `UndoSlotTest` against a recording `commit` lambda with no repository at all —
@@ -636,7 +638,7 @@ than reaching for `!!`.
   `CadenceUiState.nestingCandidates` returns nothing for a project that already has subprojects,
   and the "Nest under" section is then left out of the dialog.
 - **Backup is a published contract, the DB is not.** `domain/backup/BackupCodec.kt` writes
-  `{"format":"cadence.backup","version":1,…}` with ISO-8601 dates and recurrence as a nested
+  `{"format":"cadence.backup","version":2,…}` with ISO-8601 dates and recurrence as a nested
   object — deliberately *not* the packed `RecurrenceCodec` column — because a future web app
   reads these files. Unknown keys are ignored on read; a higher `version` is refused. Changing
   a field means bumping `VERSION` and keeping the old shape readable — but *adding* an optional
@@ -666,8 +668,8 @@ than reaching for `!!`.
   Signed in, `syncOnce()` holds a `Mutex` and does: pull rows at or after the stored cursor →
   merge each page and advance the cursor **in the same transaction** → push everything written
   since the watermark, tombstones included → collect tombstones past 90 days — on the server
-  through four Data API `DELETE`s first, then locally — at most daily and only after a round that
-  pushed (client-driven since ADR 0005; there is no server cron). Five things are load-bearing:
+  through four Data API `DELETE`s first, then locally — at most daily, after a successful round
+  (`sweepIfDue`; client-driven since ADR 0005, there is no server cron). Five things are load-bearing:
   - **The cursor is the server's clock, the merge is the device's.** `server_updated_at` is
     written only by the server's trigger, so a device whose clock is wrong can lose a conflict
     but can never make itself invisible to the other device. The pull deliberately re-reads a
@@ -695,8 +697,9 @@ than reaching for `!!`.
     exported backup file. Timestamps truncate to milliseconds in both directions, or a row
     pushed and pulled back returns strictly newer than its local copy and ping-pongs forever.
 - **Nobody presses anything to sync** (ADR 0002, decisions 11, 13 and 14). Rounds start on app
-  start and every return to the foreground, two seconds after a write, fire-and-forget on stop
-  and window close, and — on the desktop only — every 15 minutes. There is no periodic
+  start and every return to the foreground (on the desktop: the window regaining focus), two
+  seconds after a write, fire-and-forget on stop and window close, and every 60 seconds while
+  the foreground poll runs (below). There is no periodic
   `WorkManager` job and no Android poll: the phone is stale only while nobody is looking at it
   — with one carve-out: a home-screen widget counts as somebody looking, so while a task widget
   exists and a session is stored, `SyncWorker` also runs a 15-minute periodic pull beside its
@@ -794,9 +797,9 @@ than reaching for `!!`.
 English and German. Since ADR 0001 phase 3 the strings live in **`:ui`'s
 `src/commonMain/composeResources/values{,-de}/strings.xml`** and are reached as `Res.string.x` /
 `Res.plurals.x` (`org.jetbrains.compose.resources`, not `androidx.compose.ui.res`) — the XML
-shape, `<plurals>` included, is unchanged. `:app-android` keeps four strings of its own in `res/values/`:
-the launcher label and the three the notification channel needs, none of which a composable ever
-sees. `res/xml/locales_config.xml` still drives the Android 13+ per-app language picker.
+shape, `<plurals>` included, is unchanged. `:app-android` keeps its own strings in `res/values/`:
+the launcher label, the notification channel's, and the Glance widgets' — none of which a
+`:ui` composable ever sees. `res/xml/locales_config.xml` still drives the Android 13+ per-app language picker.
 
 The generated accessors are one top-level property per string, so files import them with
 `de.andi1984.cadence.ui.resources.*` rather than 245 import lines.
@@ -848,6 +851,21 @@ everywhere:
   confirms what a laptop already knows.
 - **The debug key `app-android/debug.keystore` is committed and must stay that way**, and the
   release key never enters a checkout — it arrives through the `CADENCE_KEYSTORE_*` secrets.
+
+## Documentation
+
+`docs/` is the human-facing documentation, published by `pages.yml` at
+`viberfasend.github.io/primico/docs/` through the Astro Starlight project in `docs-site/`
+(content is read straight from `docs/`, so every page is also plain Markdown on GitHub). It is
+split Diátaxis-style into `tutorials/`, `how-to/`, `concepts/`, `reference/`, plus `adr/` and
+`plans/`; `docs/how-to/write-docs.md` is the style guide. `docs/agents/` stays off the site.
+
+- **A change that makes a page wrong updates the page**, like it updates the test — the
+  reference pages name tables, columns, schema versions, env vars and shortcuts exactly.
+- Link pages and code with **relative paths**; `docs-site/src/plugins/rehype-repo-links.mjs`
+  rewrites them for the site (pages → site URLs, code → GitHub on `main`).
+- `cd docs-site && npm ci && npm run build` builds and then fails on any broken page link or
+  anchor (`check-links.mjs`); `pages.yml` runs the same build on pull requests touching docs.
 
 ## Agent skills
 

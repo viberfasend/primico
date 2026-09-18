@@ -1,5 +1,9 @@
-# ADR 0005 — Move the sync backend from Supabase to Neon
-
+---
+title: "ADR 0005 — Move the sync backend from Supabase to Neon"
+sidebar:
+  label: "0005 · Neon sync backend"
+  order: 5
+---
 **Status:** accepted
 **Date:** 2026-08-25
 **Supersedes:** ADR 0002 decisions 6 (supabase-kt as the client) and 12 (realtime as the

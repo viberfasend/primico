@@ -1,5 +1,6 @@
-# Plan: the desktop power shell
-
+---
+title: "Plan: the desktop power shell"
+---
 Phase 5 of [ADR 0001](../adr/0001-desktop-app-and-multi-device-sync.md) shipped a *working*
 desktop shell: the Android screens, a `NavigationRail`, a hand-rolled back stack, `Ctrl`/`Cmd`+`N`.
 It is a phone app in a 1100×780 window. This plan turns it into an application that behaves the

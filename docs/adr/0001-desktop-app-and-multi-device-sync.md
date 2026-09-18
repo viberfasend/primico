@@ -1,6 +1,12 @@
-# ADR 0001 — Desktop app and multi-device sync
-
-**Status:** accepted, not yet implemented
+---
+title: "ADR 0001 — Desktop app and multi-device sync"
+sidebar:
+  label: "0001 · Desktop app & multi-device sync"
+  order: 1
+---
+**Status:** accepted; phases 1–5 implemented. Decision 6 (a synced folder) and phases 6–6b are
+superseded by [ADR 0002](0002-supabase-sync.md); phase 7 is tracked as
+[#151](https://github.com/viberfasend/primico/issues/151).
 **Date:** 2026-08-07
 **Supersedes:** the automatic-backup-sync design in `AutoBackupSync` / `AutoBackupPolicy`
 

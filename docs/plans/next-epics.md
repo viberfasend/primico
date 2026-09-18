@@ -1,16 +1,25 @@
-# The next epics, and the order they go in
-
+---
+title: "The next epics, and the order they go in"
+---
 **Date:** 2026-08-23. A planning note, not a decision record — the decisions each of these
 needs are written down in `docs/adr/` when the work starts, and the detail lives in the issues.
 This file says *what is next and why in that order*, which neither an ADR nor an issue holds.
 
+:::note[Update, 2026-09-19]
+Since this was written: sync moved to Neon ([ADR 0005](../adr/0005-neon-sync.md), so realtime
+is now a 60-second poll and "ADR 0005" below is no longer free — the new ADRs take the next free
+numbers when their work starts); H is done — the sync engine has its tests and #153 is closed,
+with [#112](https://github.com/viberfasend/primico/issues/112) the one defect left. The live
+order is the `priority:P0`–`P3` labels on the issues.
+:::
+
 ## Where the app stands
 
 Cadence is feature-complete as a single-user list app. Today / Upcoming / Inbox / Triage,
-projects with sections, tags ([ADR 0004](adr/0004-tags.md)), subtasks, recurrence as a chain of
+projects with sections, tags ([ADR 0004](../adr/0004-tags.md)), subtasks, recurrence as a chain of
 rows, quick add in English and German, search, backup, Supabase sync with realtime
-([ADR 0002](adr/0002-supabase-sync.md)), Android widgets, attachments, and a desktop shell that
-behaves like a desktop application ([ADR 0003](adr/0003-desktop-interaction-model.md)).
+([ADR 0002](../adr/0002-supabase-sync.md)), Android widgets, attachments, and a desktop shell that
+behaves like a desktop application ([ADR 0003](../adr/0003-desktop-interaction-model.md)).
 
 What is left is not more list features. It is three different things:
 
@@ -24,11 +33,11 @@ What is left is not more list features. It is three different things:
 | | Epic | Issue | Size | New ADR |
 |---|---|---|---|---|
 | A | Multi-select and bulk actions | [#40](../../issues/40) | S–M | no |
-| B | Adaptive shell — one navigator, two panes on tablets | [#48](../../issues/48) | M | ADR 0005 |
+| B | Adaptive shell — one navigator, two panes on tablets | [#48](../../issues/48) | M | new ADR |
 | C | Planning surfaces — month grid, week agenda, plan-my-day | [#148](../../issues/148) | M–L | yes |
-| D | One query grammar, and saved views | [#149](../../issues/149) | L | ADR 0006 |
+| D | One query grammar, and saved views | [#149](../../issues/149) | L | new ADR |
 | E | The third platform is the browser | [#151](../../issues/151) | XL | yes |
-| F | End-to-end encrypted sync | [#152](../../issues/152) | L | ADR 0007 |
+| F | End-to-end encrypted sync | [#152](../../issues/152) | L | new ADR |
 | G | Interop — import, share target, bundle export, `.ics` | [#150](../../issues/150) | M, in slices | no |
 | H | Tests and the defect backlog | [#153](../../issues/153) | continuous | no |
 

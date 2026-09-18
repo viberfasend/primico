@@ -25,9 +25,9 @@ hero:
 |---|---|
 | **get it running** and see where things live | [Quickstart](tutorials/quickstart.md) → [A tour of the code](tutorials/tour-of-the-code.md) |
 | **make your first change** with a test and a pull request | [Your first contribution](tutorials/first-contribution.md) |
-| **get one job done** — a schema change, a new string, a release | the [how-to guides](how-to/run-tests.md) |
-| **understand why** it is local-first, how sync merges, why recurrence is a chain of rows | [Concepts](concepts/architecture.md) |
-| **look something up** — a table's columns, the backup format, a keyboard shortcut | [Reference](reference/modules.md) |
+| **get one job done** — a schema change, a new string, a release | the [how-to guides](how-to/README.md) |
+| **understand why** it is local-first, how sync merges, why recurrence is a chain of rows | [Concepts](concepts/README.md) |
+| **look something up** — a table's columns, the backup format, a keyboard shortcut | [Reference](reference/README.md) |
 | **know what was decided** and what it cost | [Decisions (ADRs)](adr/README.md) |
 
 ## Primico in four rules
@@ -63,12 +63,12 @@ flowchart LR
 
 ## What is where
 
-- **[Tutorials](tutorials/quickstart.md)** — learn by doing, one path that always works.
-- **[How-to guides](how-to/run-tests.md)** — recipes for a job you already understand.
-- **[Concepts](concepts/architecture.md)** — the reasoning, the trade-offs, the diagrams.
-- **[Reference](reference/modules.md)** — schema, formats, grammar, shortcuts, configuration.
+- **[Tutorials](tutorials/README.md)** — learn by doing, one path that always works.
+- **[How-to guides](how-to/README.md)** — recipes for a job you already understand.
+- **[Concepts](concepts/README.md)** — the reasoning, the trade-offs, the diagrams.
+- **[Reference](reference/README.md)** — schema, formats, grammar, shortcuts, configuration.
 - **[Decisions](adr/README.md)** — the architecture decision records, oldest first.
-- **[Plans](plans/next-epics.md)** — what comes next and why in that order; the live list is the
+- **[Plans](plans/README.md)** — what comes next and why in that order; the live list is the
   [issue tracker](https://github.com/viberfasend/primico/issues?q=is%3Aopen+label%3Apriority%3AP0%2Cpriority%3AP1),
   sorted by `priority:P0`–`P3`.
 

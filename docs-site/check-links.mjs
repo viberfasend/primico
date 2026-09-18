@@ -58,5 +58,18 @@ for (const page of pages) {
     }
   }
 }
+// Every sidebar group must list at least one page — an empty group renders as a heading that
+// opens onto nothing, which is how the first deploy shipped (see src/sidebar.mjs).
+// The home page is a splash page with no sidebar, so read one that has it.
+const home = readFileSync(path.join(dist, 'concepts', 'index.html'), 'utf8');
+const nav = home.slice(home.indexOf('<ul class="top-level'), home.indexOf('</nav>', home.indexOf('<ul class="top-level')));
+for (const group of nav.split('<details').slice(1)) {
+  const label = group.match(/class="group-label[^>]*>[\s\S]*?<span[^>]*>([^<]*)</)?.[1];
+  if (!/<a href=/.test(group)) {
+    broken++;
+    console.error(`sidebar: group "${label}" has no pages`);
+  }
+}
+
 if (broken) { console.error(`\n${broken} broken link(s).`); process.exit(1); }
 console.log(`Links OK across ${pages.length} pages.`);

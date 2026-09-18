@@ -153,52 +153,11 @@ store ports (see the `StoreTransaction` note above).
 
 JDK 17, compileSdk/targetSdk 35, minSdk 26. No lint or format task is wired up.
 
-The server half of sync is `neon/migrations/*.sql` ([ADR 0005](docs/adr/0005-neon-sync.md)) —
-four tables, forced RLS over `auth.user_id()`, and the stale-write trigger. It is committed
-rather than left in the console because it is the one part of the system the Kotlin suite cannot
-reach. There is deliberately no `pg_cron` job: Neon's compute scales to zero and cron only fires
-while it is awake, so the tombstone sweep is client-driven — after a successful push, at most
-daily, the engine `DELETE`s its own tombstones past the 90-day horizon through the Data API (by
-`server_updated_at`, the server's clock, since `deleted_at` is a device's).
+The server half of sync is `neon/migrations/*.sql` ([ADR 0005](docs/adr/0005-neon-sync.md)): four
+tables, forced RLS over `auth.user_id()`, the stale-write trigger, `migrate.sh`, `db.sh` and a
+docker test. `neon/CLAUDE.md` holds the rules for it, the Data API default-privileges gotcha
+included, and loads when working under `neon/`.
 
-**Apply it with `bash neon/migrate.sh`**, which needs `CADENCE_NEON_DB_URL` (the direct Postgres
-connection string from the Neon console) and `psql`. Bookkeeping is one table,
-`public.schema_migrations`, keyed by *filename* — a file is applied inside one transaction with
-the row that records it, and re-running the script skips what is recorded. The files are
-idempotent besides, so pasting one into the console's SQL editor is also safe. **Enable the Data
-API for the branch before migrating**: it provisions `auth.user_id()` (pg_session_jwt) and the
-`authenticated`/`anonymous` roles the migration leans on, and the baseline refuses with a clear
-message when they are missing.
-
-**Enabling the Data API grants every future table away, and that has already bitten once.** It
-leaves a default-privilege entry behind — `neondb_owner | public | r | authenticated=arwd` — so a
-table the owner creates in `public` from then on is readable *and writable* by any signed-in
-account the moment it exists, with nobody granting anything. `schema_migrations`, created by
-`migrate.sh` rather than by a migration, picked that up and was served over HTTP until Neon's own
-advisor pointed at it; a forged row in it would have made the next `migrate.sh` skip a migration.
-`0002_lock_bookkeeping.sql` revokes it, puts RLS on the table with no policy at all, and revokes
-the default itself, so **a new table is not in the Data API until a migration grants it** — which
-is how `0001` already works. The rule to keep: state grants outright, and never assume a table is
-private because nothing granted it.
-
-Maintenance from a laptop is `bash neon/db.sh` (same `CADENCE_NEON_DB_URL`, same never-stored
-rule): `status` shows live rows, tombstones, how many are collectable and how the rows split
-across accounts; `sweep` prints what it would collect and changes nothing until `--yes`;
-`vacuum` hands the space back. It exists *beside* the client's own sweep rather than instead of
-it — the client collects only the account it is signed in as, so rows belonging to an account
-that no longer signs in (an old test login) are unreachable from any device. The connection it
-uses carries BYPASSRLS on Neon, which is the point and also the danger, hence the dry-run
-default, the tombstone-only predicate and the 90-day floor (`--force` to go below, with the
-reason printed: a device offline longer than the horizon puts back what the others deleted).
-
-No Gradle task will tell you any of it is wrong, so it has a test of its own:
-`bash neon/tests/run.sh` applies every migration to a throwaway `postgres:16` container (through
-`migrate.sh` once, then directly a second time for idempotence) with `auth.user_id()`, the Data
-API roles **and Neon's default privileges** stubbed — that last one is not decoration: without it
-the harness passed while the live project was handing `schema_migrations` to every signed-in
-account. It checks the trigger semantics, the RLS isolation, the client-shaped sweep statement,
-the bookkeeping lock-down and `db.sh` itself. Needs docker and nothing else. Run it after editing
-anything under `neon/`.
 **The sync endpoints are compiled in at build time, and there is no default.** `:core`'s
 `generateNeonConfig` Gradle task reads `CADENCE_NEON_DATA_API_URL` and `CADENCE_NEON_AUTH_URL`
 from the environment of the Gradle invocation and writes them into a generated
@@ -278,51 +237,6 @@ pushes as before, and resizing across the threshold moves an open detail between
 than dropping it (ADR 0003, decision 7). Everything ADR 0001 §8 left for later — the detail pane,
 the command palette (`Ctrl`/`Cmd`+`K`) — landed with ADR 0003; only the desktop *language* setting
 of ADR 0001 decision 9 is still outstanding.
-
-### Layers
-
-```
-:core         domain/     pure Kotlin — model, RecurrenceEngine, QuickAddParser, BackupCodec. NO
-                          Android imports; this is what the JVM unit tests exercise. Keep it that way.
-              data/       CadenceRepository, the TaskStore/ProjectStore/BackupStore/SyncStore ports it
-                          needs, and the SQLDelight-backed implementations of those ports (data/db/);
-                          CadenceCore wires the database, the blob store, the repository and the
-                          sync engine into the one graph both shells' AppContainers build on
-              data/sync/  CadenceSyncEngine (hand-rolled Ktor: Neon Auth sign-in + JWT mint,
-                          PostgREST pull/merge/push against the Neon Data API — ADR 0005), the
-                          wire DTOs and NeonConfig — a plain class, not a port (ADR 0002, dec. 7)
-:ui           ui/         theme, shared components, ui/format/, one package per screen, CadenceViewModel
-              ui/platform/ the ports the ViewModel needs from the machine — ReminderScheduler,
-                          BackupGateway, BackupFilePicker, AttachmentFilePicker, AttachmentOpener
-              ui/dnd/     the drag kernel (ADR 0003): DragModel.kt is pure — payloads, targets,
-                          resolveDrop, hitTest — and DragAndDrop.kt is the gesture, ghost and caret
-              ui/palette/ CommandPaletteModel — the fuzzy ranking behind Ctrl/Cmd+K, pure Kotlin
-              ui/tags/    TagsScreen (manage), TagDetailScreen (one tag's list), the picker and
-                          editor dialogs — tags hang off Projects, not the bottom bar (ADR 0004)
-              ui/attachments/ the card on the task detail screen, the paste-a-link dialog and the
-                          hand-rolled thumbnail decoder (docs/attachments-and-share.md, phase 2)
-              composeResources/ strings.xml and values-de/, reached as Res.string.x
-:app-android  ui/         CadenceApp (NavHost, bottom bar, FAB), CadenceViewModelHost, the SAF picker
-              ui/attachments/ SafAttachmentFilePicker (OpenDocument)
-              data/attachments/AndroidAttachmentOpener (FileProvider + ACTION_VIEW)
-              data/backup/BackupIo (SAF read/write)
-              data/settings/SharedPrefsSettingsStore
-              reminders/  AlarmManager scheduling, notification receiver, boot re-schedule
-              widget/     Glance home-screen widgets — Android-only, so never in :ui
-:app-desktop  Main.kt     application {}/Window, wires CadenceViewModel, dispatches Shortcuts.kt,
-                          restores the window, recomputes `today` at midnight
-              AppContainer.kt hand-rolled DI, same shape as :app-android's
-              ui/         CadenceDesktopApp (sidebar + list pane + detail pane), Navigation.kt
-                          (DesktopNavigator: back stack, forward stack, detail pane), Sidebar.kt,
-                          Shortcuts.kt (the one table the window and the ? sheet both read),
-                          CommandPaletteDialog, ShortcutSheet, TrayMenu
-              data/       DesktopBackupIo (java.nio), DesktopSettingsStore
-                          (JSON file), DesktopWorkspaceStore (window + sidebar, desktop-only),
-                          DesktopBackupFilePicker (JFileChooser), DesktopReminderScheduler
-                          (coroutine poll + system tray, no AlarmManager here),
-                          DesktopAttachments.kt (JFileChooser + java.awt.Desktop)
-              platform/   PlatformDirs — the per-OS data directory (ADR 0001 §8)
-```
 
 **`:ui` states its platform needs as ports too.** `:core` already treats storage that way; the
 same idea covers everything else the app touches that Android and the desktop do differently.
@@ -595,86 +509,9 @@ than reaching for `!!`.
   way "Kochen morgen 19 Uhr" is already tomorrow because "morgen" claims the date itself. A
   recurrence still wins over the bare-time fallback: "every monday at 9am" is a schedule, not
   "today at 9am, once."
-- **Home-screen widgets are Glance, live in `:app-android/widget/`, and are Android-only.** Glance
-  is the only widget toolkit still under development — `RemoteViews` is the legacy API it hides —
-  and it has no desktop counterpart, so nothing about widgets belongs in `:ui`. `AppContainer`
-  reconciles them on every `repository.tasks` emission exactly as reminders are reconciled, and
-  `WidgetUpdater` is the single list of what exists; `updatePeriodMillis` in each provider-info
-  XML is only the fallback for when no process is alive to run that collector. A widget never
-  re-derives what to show: `TaskListScope` is a `TaskView` and two strings, and the widget builds
-  a partial `CadenceUiState` (`widgetUiState()`) purely to call `taskList` on it, so the home
-  screen shows exactly what the screen it mirrors shows — the user's `showCompleted` and
-  `sortMode` included. The model to hold in mind is that **a widget is drawn by a *session* — a
-  WorkManager job Glance starts, keeps for about 45 seconds after the first frame, and closes,
-  composition and all** — and that the process is cold for most of them: a tap from the home
-  screen, a reboot, an APK install, the half-hourly system tick. Every rule below follows from
-  that, and each one cost real time to find:
-  - **Frame one is drawn from a snapshot read before `provideContent`, and every later frame from
-    the flow collected inside it — both, never one.** `updateAll` on an *open* session recomposes
-    what it has and does not run `provideGlance` again, so a `first()` captured above
-    `provideContent` alone froze the widget for 45 seconds — a task ticked off from it wrote,
-    redrew, and changed nothing. `updateAll` on a *closed* session starts a new one and runs
-    `provideGlance` again, so a `collectAsState(initial = null)` alone published a header-only
-    (or, for the next-task widget, blank) first frame on every cold update and filled it in a
-    frame later — when WorkManager, the database and the recomposer's next tick all got there
-    before the process was taken, which on a phone is "usually". `widgetSnapshot()` +
-    `widgetUiState(container, initial)` is the pair, and `widget/CadenceStateWidget.kt`'s
-    `final override suspend fun provideGlance` is now the *one* place it runs — `TaskListWidget`
-    and `CadenceNextTaskWidget` each used to write this method out by hand and only ever
-    override `Content(context, state, today)`, so a widget can no longer read one half of the
-    pair without the other.
-  - **The list widgets scroll, and a scrolling widget is a `ListView` — its rows are RemoteViews
-    collection items, and only `actionStartActivity` reliably escapes one.** A collection item
-    owns no `PendingIntent`: the platform offers one template on the list plus a per-item fill-in
-    intent, the template starts an activity, and everything else — `actionRunCallback` included —
-    rides a trampoline that silently never arrived on a real device. Ticking a row off therefore
-    goes through `WidgetToggleActivity`, an invisible `Theme.NoDisplay` activity that writes and
-    finishes in `onCreate`. The next-task widget is *not* a collection, so its circle takes the
-    better route — an `actionRunCallback` broadcast to `ToggleTaskCallback`, no window at all;
-    both doors call the same `toggleTaskFromWidget`. Below Android 12 a collection's items are
-    served from an in-memory store that dies with the process, which is the second reason frame
-    one must already carry the list. Known, accepted cost: the scroll position resets when the
-    list content changes.
-  - **The design is bands and cards, derived — never invented — in the widget.** The rows come
-    from `taskList` with their bands, so the Overdue/Today labels are the Today screen's own
-    split made visible; the header counts open tasks and draws the day's progress (Today only —
-    the Inbox is a place, not a plan); rows are rounded cards, overdue ones tinted with the error
-    container, completion rings tinted by priority (`widgetPriorityColor`, from the same
-    `CadenceColors` the app's `LocalCadenceColors` carries). Colour never stands alone: `P1`…`P4`
-    is spelled out in the meta line and "Overdue" is written next to it. `cornerRadius` clips on
-    Android 12+ and quietly draws square below.
-  - **Two intents that differ only in their extras are the same intent.** `Intent.filterEquals` —
-    what `PendingIntent` matches on — ignores extras, and Glance builds `actionStartActivity` with
-    `FLAG_UPDATE_CURRENT`. A list of rows carrying nothing but a different `taskId` extra
-    therefore collapses onto *one* `PendingIntent` whose extras the last row composed overwrote:
-    every row opens the same task, and the widget reads as decorative. `WidgetIntents` gives each
-    destination a distinct `data` URI, which is the only thing keeping them apart.
-  - **A widget must visibly answer a tap.** Ticking a row honours the user's `showCompleted`
-    setting like every screen does, so the row strikes through and stays instead of vanishing —
-    a row that disappears reads as deleted, not completed.
-  - **A widget keeps itself fresh, both directions** (ADR 0002, amendment 1). Outbound is the
-    write aftercare below. Inbound: every widget session start runs `syncInBackgroundIfStale`
-    (five minutes — the guard keeps sessions our own refreshes start from becoming requests),
-    and while a task widget exists *and* a session is stored, `WidgetUpdater.refreshAll`
-    keeps a 15-minute `SyncWorker` periodic alive — the desktop's poll interval, applied to the
-    one surface that is always visible — and cancels it when either condition ends. Rows a round
-    merges reach the widget through the container's collector like any other write.
-  - **A write made from a widget does its own aftercare, and the aftercare lives in the write, not
-    in its callers.** `AppContainer.toggleTaskFromWidget` — the write `ToggleTaskCallback` and
-    `WidgetToggleActivity` both call, on a broadcast or an Activity, either way on a process
-    nothing keeps alive — calls `WidgetUpdater.refreshAll` and hands the push to the server to
-    `sync/SyncWorker` itself, sequenced after `setCompleted`'s transaction returns: a one-shot
-    WorkManager job with a network constraint, the single WorkManager use in the app and not the
-    poll ADR 0002 rejected (it never runs unprompted; it carries one write). Enqueuing ahead of
-    the write races it — WorkManager runs a job with satisfied constraints immediately,
-    in-process, so a round that won that race pushed everything above the watermark before the
-    toggle was in it and did not fire again until the next one. The two call sites used to each
-    repeat both calls in that order themselves; now they are one line with nothing to get wrong.
-    In-app writes need neither: the container's collector redraws and the ViewModel's debounce
-    pushes.
-  - **Today turns over at midnight with nothing written**, so `WidgetMidnightRefresh` arms an
-    inexact alarm from every `provideGlance` and every `refreshAll` while a task widget exists —
-    the widget's version of the screen's midnight `LaunchedEffect` (#115).
+- **Home-screen widgets are Glance, live in `:app-android/widget/`, and are Android-only.** The
+  rules for them — snapshot plus flow, `ListView` items, distinct intent URIs, write aftercare,
+  midnight refresh — are in `app-android/CLAUDE.md`, loaded when working under that module.
 - **A tag is identity only; membership is a column on the task** (ADR 0004). `tagRow` carries a
   name, a colour and a position. Which tasks wear it is `taskRow.tagIds`, packed comma-separated by
   `TagIdsCodec` — **there is no join table, deliberately**, and the reasons are worth knowing before
@@ -1000,110 +837,17 @@ The generated accessors are one top-level property per string, so files import t
 
 ## CI / releases
 
-**Only the cheap workflows run on their own.** `ci.yml` runs the test command at
-the top of Commands on Linux for every pull request and every push to `main` — the repository
-is public, so Linux minutes are free and unlimited, and `main`'s branch protection requires
-that check. Everything that spends money stays `workflow_dispatch`: `android.yml`,
-`desktop.yml` and `release.yml` have no `push`, no `pull_request`, no `schedule`. They used to
-run on every push to **any** branch back when the repository was private and minutes were
-billed; a single push started four runners, two of them at macOS's 10x and Windows's 2x
-multipliers. **Still verify locally before pushing**: the suite is roughly five seconds of test
-time, CI only confirms what a laptop already knows, and if it takes minutes something hangs —
-see the note below. Don't give `desktop.yml` or `release.yml` an automatic trigger without being
-asked for it outright; a macOS leg on every PR is the bill this rule exists to prevent.
-`dependabot.yml` opens one grouped PR per ecosystem (Gradle, Actions) weekly, and `ci.yml` is
-what validates them.
+The whole workflow — `build.sh`, the four workflows and their inputs, version derivation,
+signing — is the `releasing` skill (`.claude/skills/releasing/SKILL.md`). Three rules hold
+everywhere:
 
-What each one does:
-
-- `ci.yml` — the test command, Linux only, uploading the test reports on failure. No APK: that
-  is 31 tasks that run no test.
-- `pages.yml` — deploys `site/` (the landing page, plain HTML, no build step) to GitHub Pages on
-  a push to `main` that touches it. The second self-running workflow, and for the same reason:
-  a Linux runner is free here, and a page that only deploys when clicked goes stale.
-- `android.yml` — tests, then `build.sh apk`, uploading both APKs as artifacts. Dispatch only.
-
-Two backstops sit under all four, because the failure that prompted them cost hours rather
-than minutes: **every `Test` task has a five-minute `timeout`** (the `subprojects` block in the
-root `build.gradle.kts`) and **every job has a `timeout-minutes`**. GitHub's default job limit
-is six hours, so a test that hangs instead of failing runs out the afternoon and reports
-nothing. Five minutes is two orders of magnitude above what the suite needs, so it can only
-ever catch a hang.
-
-Caching is `gradle/actions/setup-gradle@v4` and nothing else. It caches `~/.gradle` — the
-dependency cache, the wrapper and the **build cache**, which `gradle.properties` now switches
-on — so the hand-rolled `actions/cache` step that used to sit beside it restored the same
-directory a second time, with a `transforms-` glob that matched nothing, and has been removed
-along with the `find ~/.gradle/caches -delete` step that pruned what the action manages.
-- `desktop.yml` — tests, then `build.sh desktop`, over a matrix built from an `os` **input**
-  that defaults to `ubuntu-latest` alone rather than fanning out to three runners; pass `all`
-  for all three. jpackage runs on the target OS, so there is no cross-compiling a `.dmg` from
-  Linux, and each leg installs the packaging tool its OS lacks (`fakeroot`/`rpm` on Linux, the
-  WiX Toolset on Windows; macOS's `hdiutil` needs nothing extra). A `.dmg` or an `.msi` is the
-  only artefact a Linux laptop genuinely cannot produce — that is the whole remaining case for
-  the runner.
-- `release.yml` — the only workflow that publishes anything, and **the only one that refuses to
-  run off `main`**: it creates the tag from the commit it was dispatched on, so a run started on
-  a branch would publish a release pointing at unmerged work. Its `targets` **input** decides
-  what gets built, and defaults to `android+deb` — the APKs and the Linux `.deb`, one Linux
-  runner each, which is what a Primico release actually ships today. `android` and `deb` narrow
-  that to one half; `all` adds the rpm, the tarball, the `.dmg` and the `.msi`, and with them the
-  macOS and Windows runners at 10x and 2x. The download list in the release body is generated
-  from the files that actually landed in `dist/`, so a run that packaged no `.msi` publishes no
-  link to one. `dry-run` builds and tests everything and publishes nothing.
-
-  Four jobs: `preflight` derives the version **once** (both build jobs read it from
-  `needs.preflight.outputs`, so the two can never name one build two versions) and is where the
-  branch guard and the "no commits since the last tag" guard live; `build-android` and
-  `build-desktop` run in parallel; `publish` collects every `release-assets-*` artifact with one
-  `pattern` download, because which artifacts exist depends on the input. The desktop job names
-  `deb` outright rather than `desktop` — `build.sh` demotes a format to a warning only when an
-  alias implied it, and a release that quietly ships without the `.deb` is exactly the failure
-  the job exists to catch.
-
-Since `build.sh` is what all three call, a release can equally be cut entirely on a laptop: `bash
-.github/scripts/build.sh apk deb` stages `dist/`, then `gh release create … dist/*`.
-
-The version is **derived, never edited**. `.github/scripts/next-version.sh` reads the
-Conventional Commit subjects since the last `v*` tag: a `!` or a `BREAKING CHANGE:` footer bumps
-major, any `feat:` bumps minor, anything else bumps patch, so a release always carries a version
-that describes what went into it. With no tag yet the first release is `1.0.0`. The script
-writes `version`/`version_code`/`notes` as step outputs; `app-android/build.gradle.kts` reads
-`CADENCE_VERSION_NAME`/`CADENCE_VERSION_CODE` from the environment and falls back to `0.0.0-dev`
-locally. `versionCode` is `major * 10000 + minor * 100 + patch`. Run the script locally to see
-what releasing now would publish:
-
-```bash
-bash .github/scripts/next-version.sh    # prints the outputs when GITHUB_OUTPUT is unset
-```
-
-The release action creates the tag from the commit it ran on, so the next run measures from
-there. `releases/latest/download/primico-debug.apk` still serves the newest published build,
-because each release is published with `make_latest` — it now moves when someone releases, not
-when someone merges. Debug and release use different application IDs (`.debug` suffix) and
-install side by side.
-
-**The debug key is committed (`app-android/debug.keystore`) and must stay that way.** Android installs a
-build over an existing app only when both carry the same signing certificate, and AGP invents a
-fresh `~/.android/debug.keystore` wherever none exists — on a CI runner, that is every single
-run. Releases up to v1.1.2 therefore each had their own key and could not update one another;
-the phone just said "App not installed". Pinning the key is the fix, so don't move it back
-behind `.gitignore` or let the debug `signingConfig` fall back to AGP's default.
-`.github/scripts/check-signing.sh` runs in CI and fails the build if the debug APK's certificate
-stops matching the committed keystore.
-
-**The release APK is signed with a real key since 3.0, and the README's permanent link points
-at it.** The four `CADENCE_KEYSTORE_BASE64` / `CADENCE_KEYSTORE_PASSWORD` / `CADENCE_KEY_ALIAS` /
-`CADENCE_KEY_PASSWORD` secrets carry it into `android.yml` and `release.yml`; the keystore itself
-lives outside every checkout (`~/.cadence-release/` by default) and `tools/release-signing-wizard.sh`
-is how it was minted and how the secrets are (re)set — re-running it reuses the file and never
-overwrites a key. Losing that file means every install has to be uninstalled once, the way the
-pre-3.0 debug-signed installs had to be. Without the secrets the release build still falls back
-to the debug key so `assembleRelease` works on any laptop, but `check-signing.sh` now *fails*
-when `CADENCE_KEYSTORE` is set and the release APK nevertheless carries the debug certificate —
-a release cut that way could not update anyone. The debug APK stays debug-signed and public by
-construction: anyone can build one that installs over it, which is why `SECURITY.md` tells
-users to install the release APK.
+- **Only `ci.yml` and `pages.yml` run on their own.** `android.yml`, `desktop.yml` and
+  `release.yml` are `workflow_dispatch` only; don't give them an automatic trigger without
+  being asked for it outright — a macOS leg on every PR is the bill this rule prevents.
+- **Verify locally before pushing.** The suite is about five seconds of test time; CI only
+  confirms what a laptop already knows.
+- **The debug key `app-android/debug.keystore` is committed and must stay that way**, and the
+  release key never enters a checkout — it arrives through the `CADENCE_KEYSTORE_*` secrets.
 
 ## Agent skills
 

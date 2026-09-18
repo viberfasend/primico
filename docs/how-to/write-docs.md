@@ -38,6 +38,11 @@ a page that tries to be two of them is usually two pages.
 | `adr/` | know what was decided, when, and what it cost | one decision record per file, never rewritten after it is accepted |
 | `plans/` | see what is next and why that order | planning notes, dated; superseded by ADRs and issues as work starts |
 
+Each directory's `README.md` is its **overview page** — the section's own URL
+(`/docs/concepts/`) and the first entry in its sidebar group. A new page appears in the sidebar
+by itself, ordered by `sidebar.order`; list it on the overview page too, in the group it belongs
+to.
+
 ## Writing a page
 
 Every page starts with front matter; the title is **not** repeated as a `#` heading, because the

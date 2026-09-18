@@ -5,6 +5,7 @@ import starlight from '@astrojs/starlight';
 import mermaid from 'astro-mermaid';
 import { satteri } from '@astrojs/markdown-satteri';
 import repoLinks from './src/plugins/repo-links.mjs';
+import { sidebarItems } from './src/sidebar.mjs';
 
 const base = '/primico/docs';
 const docsDir = fileURLToPath(new URL('../docs', import.meta.url));
@@ -32,20 +33,22 @@ export default defineConfig({
       // its own content directory unless told otherwise; ours is the repository's docs/.
       markdown: { processedDirs: ['../docs'] },
       customCss: ['./src/styles/theme.css'],
+      // Built from docs/ by src/sidebar.mjs — Starlight's `autogenerate` cannot see pages that
+      // live outside src/content/docs/.
       sidebar: [
         { label: 'Start here', items: [
-          { label: 'Overview', link: '/' },
-          { autogenerate: { directory: 'tutorials' } },
+          { label: 'Home', link: '/' },
+          ...sidebarItems(docsDir, 'tutorials'),
         ] },
         { label: 'How-to guides', items: [
-          { autogenerate: { directory: 'how-to' } },
+          ...sidebarItems(docsDir, 'how-to'),
           { label: 'Self-host sync', link: '/self-hosting/' },
         ] },
-        { label: 'Concepts', items: [{ autogenerate: { directory: 'concepts' } }] },
-        { label: 'Reference', items: [{ autogenerate: { directory: 'reference' } }] },
-        { label: 'Decisions (ADRs)', items: [{ autogenerate: { directory: 'adr' } }] },
+        { label: 'Concepts', items: sidebarItems(docsDir, 'concepts') },
+        { label: 'Reference', items: sidebarItems(docsDir, 'reference') },
+        { label: 'Decisions (ADRs)', items: sidebarItems(docsDir, 'adr') },
         { label: 'Plans & design notes', collapsed: true, items: [
-          { autogenerate: { directory: 'plans' } },
+          ...sidebarItems(docsDir, 'plans'),
           { label: 'Attachments and the share sheet', link: '/attachments-and-share/' },
         ] },
       ],

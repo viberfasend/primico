@@ -9,11 +9,14 @@ and the order the next epics go in — with the reasoning — is
 [`docs/plans/next-epics.md`](docs/plans/next-epics.md). Each item below is tracked as a GitHub
 issue, grouped the same way by [milestone](../../milestones) and indexed by the pinned
 [📍 Roadmap overview](../../issues/49). This file is the human-readable summary; the issues carry
-the detail and the up-to-date state.
+the detail and the up-to-date state, and each open one wears a `priority:P0`–`P3` label: core
+fixes and features that reach every platform first, single-platform work last
+([sorted list](../../issues?q=is%3Aopen+sort%3Acreated-asc+label%3Apriority%3AP0%2Cpriority%3AP1)).
+The developer documentation lives at [`docs/`](docs/README.md).
 
 Primico is feature-complete as a single-user list app. What is left is **reach** (machines it does
 not run on), **planning** (it can say what is due, not show a week) and **trust** (the server can
-read every title, and the sync engine has no tests).
+read every title).
 
 ## Now
 
@@ -22,10 +25,10 @@ read every title, and the sync engine has no tests).
       and all act on one row.
 - [ ] **Adaptive shell: one navigator, two panes on tablets and foldables** — [#48](../../issues/48).
       `DesktopNavigator` and the 1000dp rule move into `:ui`, so Android stops running a phone
-      layout on a 1200dp screen. ADR 0005.
-- [ ] **Tests and the defect backlog** — [#153](../../issues/153). `CadenceSyncEngine` has no
-      tests ([#107](../../issues/107)); [#114](../../issues/114), [#115](../../issues/115) and
-      [#117](../../issues/117) are defects a person hits.
+      layout on a 1200dp screen. Needs a new ADR (0005 went to the Neon move).
+- [ ] **BlobStore: a race in `reclaim()` can delete bytes a new attachment just claimed** —
+      [#112](../../issues/112). The last item left of the defect backlog
+      ([#153](../../issues/153), closed); the sync engine has its tests now.
 - [ ] Desktop polish: hover states and tooltips — [#133](../../issues/133)
 
 ## Next
@@ -37,7 +40,7 @@ read every title, and the sync engine has no tests).
       - [ ] Plan my day — [#155](../../issues/155)
 - [ ] **One query grammar, and saved views built on it** — [#149](../../issues/149). Four places
       filter tasks and each filters differently; reading a list should speak the same language as
-      writing one. ADR 0006.
+      writing one. Needs a new ADR.
       - [ ] `TaskQuery` in `:core` — [#156](../../issues/156)
       - [ ] Search runs it — [#157](../../issues/157)
       - [ ] Saved views — [#158](../../issues/158)
@@ -62,8 +65,10 @@ One flagship, not both — see [`docs/plans/next-epics.md`](docs/plans/next-epic
       - [ ] 3 — `:app-web`, read and complete — [#43](../../issues/43)
       - [ ] 4 — parity, minus what a browser cannot do — [#162](../../issues/162)
 - [ ] **End-to-end encrypted sync** — [#152](../../issues/152). The server should not be able to
-      read the list. Search is local already, so it costs the app no capability. ADR 0007.
+      read the list. Search is local already, so it costs the app no capability. Needs a new ADR.
 - [ ] Widgets scope to a saved view — [#159](../../issues/159)
+- [ ] Push-driven widget updates via FCM — [#177](../../issues/177). Its server half needs
+      redesigning for Neon first.
 - [ ] Attachments phase 5 — shortcuts, deep link, outgoing share — [#37](../../issues/37)
 - [ ] Additional locales beyond German — [#47](../../issues/47)
 
@@ -73,6 +78,16 @@ duration in this model).
 
 ## Done
 
+- [x] **Developer documentation site** — [`docs/`](docs/README.md), built by `docs-site/` into
+      the Pages site: tutorials, how-to guides, concepts, reference and the ADRs, cross-linked
+- [x] **Primico** — the rename from Cadence, open-sourcing under GPL-3.0-or-later, CI on every
+      pull request, and the landing page
+- [x] **Sync on Neon** — [ADR 0005](docs/adr/0005-neon-sync.md): Data API + Neon Auth, a
+      60-second foreground poll, build-time endpoints with no default, and a self-hosting guide
+- [x] **Reminders before a task's time** — per-device lead minutes, exact Doze-proof alarms on
+      Android, one reconciler for both shells
+- [x] **More widgets** — Inbox and Next-task widgets beside Today, kept fresh every 15 minutes
+      while one exists
 - [x] **The desktop power shell** — [#123](../../issues/123), designed in
       [ADR 0003](docs/adr/0003-desktop-interaction-model.md): a drag-and-drop kernel, right-click
       menus, drag to reorder and to file, the sidebar with the project tree, the command palette,
@@ -81,7 +96,8 @@ duration in this model).
       [ADR 0004](docs/adr/0004-tags.md): `@handle` in quick add, chips, a cross-project list per
       tag, and membership as a packed column on the task
 - [x] **Attachments** phases 0–2 — files and links on a task, content-addressed blobs, thumbnails
-      ([#32](../../issues/32), [#33](../../issues/33), [#34](../../issues/34))
+      ([#32](../../issues/32), [#33](../../issues/33), [#34](../../issues/34)); phases 3–5 are
+      part of the interop epic, [#150](../../issues/150)
 - [x] **Sync that runs itself** — [#76](../../issues/76),
       [ADR 0002](docs/adr/0002-supabase-sync.md) phases 3 and 3b: automatic triggers, sync in the
       header, a failure snackbar, and realtime as an accelerant (realtime since replaced by the

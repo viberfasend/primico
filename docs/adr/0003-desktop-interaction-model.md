@@ -1,5 +1,9 @@
-# ADR 0003 — The desktop interaction model
-
+---
+title: "ADR 0003 — The desktop interaction model"
+sidebar:
+  label: "0003 · Desktop interaction model"
+  order: 3
+---
 **Status:** accepted · **Date:** 2026-08-21 · **Supersedes nothing.** Continues
 [ADR 0001](0001-desktop-app-and-multi-device-sync.md) §8, which shipped a *working* desktop shell
 and named what it deliberately left out.

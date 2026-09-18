@@ -1,0 +1,49 @@
+/* Primico's palette and type, taken from the landing page (site/index.html) so the docs read as
+   the same product. Starlight's accent scale: low = tint, base = links/highlights, high = ink. */
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=Public+Sans:ital,wght@0,400;0,600;1,400&display=swap');
+
+:root {
+  --sl-font: 'Public Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --sl-font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --sl-color-accent-low: #00382f;
+  --sl-color-accent: #2fa596;
+  --sl-color-accent-high: #9ff2e4;
+  --sl-color-white: #dde4e1;
+  --sl-color-gray-1: #cfd8d5;
+  --sl-color-gray-2: #bec9c5;
+  --sl-color-gray-3: #889390;
+  --sl-color-gray-4: #555f5c;
+  --sl-color-gray-5: #3f4946;
+  --sl-color-gray-6: #1b2220;
+  --sl-color-black: #0e1513;
+}
+
+:root[data-theme='light'] {
+  --sl-color-accent-low: #cde8e1;
+  --sl-color-accent: #006a60;
+  --sl-color-accent-high: #00201c;
+  --sl-color-white: #171d1b;
+  --sl-color-gray-1: #252b29;
+  --sl-color-gray-2: #3f4946;
+  --sl-color-gray-3: #6f7a77;
+  --sl-color-gray-4: #889390;
+  --sl-color-gray-5: #bec9c5;
+  --sl-color-gray-6: #e3eeea;
+  --sl-color-gray-7: #f4fbf8;
+  --sl-color-black: #ffffff;
+}
+
+h1, h2, h3, .site-title, .hero h1 {
+  font-family: 'Bricolage Grotesque', 'Public Sans', system-ui, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+/* Mermaid diagrams sit on the page, not in a grey box, and never overflow a phone. */
+pre.mermaid, .mermaid {
+  background: transparent;
+  text-align: center;
+  overflow-x: auto;
+}
+
+/* Tables in the reference pages are wide; let them scroll rather than squash. */
+.sl-markdown-content table { display: block; overflow-x: auto; }

@@ -6,7 +6,7 @@ nothing to install.
 ## `todoist_import.py` — Todoist CSV export → Primico backup
 
 Todoist's export gives you one CSV per project. This turns a whole export into a single
-`cadence.backup` file, which the app imports under **Settings → Backup → Import**. Importing
+`cadence.backup` file, which the app imports under **Settings → Data → Import backup**. Importing
 *merges*, so it adds to what is already on the device rather than replacing it.
 
 ```bash

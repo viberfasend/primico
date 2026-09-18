@@ -14,9 +14,10 @@ By participating, you agree to abide by our [Code of Conduct](CODE_OF_CONDUCT.md
   problem you are trying to solve, not only the solution. The [roadmap](ROADMAP.md) lists what
   is already planned and what is deliberately not.
 - 📝 **Improve docs** — typo fixes and clarifications are very welcome, in `README.md`,
-  `CLAUDE.md` and `docs/`.
+  `CLAUDE.md` and `docs/`. [Write and preview the docs](docs/how-to/write-docs.md) says where a
+  page goes and how to see the site locally.
 - 🌍 **Translate** — a new language is a `values-xx/strings.xml` plus a `QuickAddLexicon`;
-  see the *Localisation* section of [`CLAUDE.md`](CLAUDE.md#localisation).
+  see [Localise the app](docs/how-to/localise.md).
 - 🔧 **Submit code** — fix a bug or build a feature (see below).
 
 If you are planning a larger change, please open an issue first so we can discuss the approach
@@ -26,12 +27,12 @@ before you invest time. Decisions that outlive one change are written down as AD
 ## Development setup
 
 You need **JDK 17**. The desktop app needs nothing else; the Android app additionally needs the
-**Android SDK** with `compileSdk` 35 (set `ANDROID_HOME`, or write `sdk.dir=…` into a
+**Android SDK** with `compileSdk` 36 (set `ANDROID_HOME`, or write `sdk.dir=…` into a
 `local.properties` at the repo root). The server-side tests need **docker**.
 
 ```bash
 git clone https://github.com/viberfasend/primico.git
-cd cadence
+cd primico
 ./gradlew :app-desktop:run      # the desktop app, from source
 ./gradlew assembleDebug         # the Android debug APK
 ```
@@ -45,8 +46,13 @@ ui/            Compose Multiplatform — theme, components, screens, the one Vie
 app-android/   the Android shell (navigation, alarms, widgets, SAF, SharedPreferences)
 app-desktop/   the JVM shell (window, sidebar, shortcuts, tray, JSON settings, jpackage)
 neon/          the server half: SQL migrations, migrate.sh, db.sh, a docker-based test harness
-docs/adr/      architecture decision records
+docs/          developer documentation; docs/adr/ holds the architecture decision records
+docs-site/     builds docs/ into https://viberfasend.github.io/primico/docs/
 ```
+
+New here? The [quickstart](docs/tutorials/quickstart.md) and
+[your first contribution](docs/tutorials/first-contribution.md) walk the whole loop, from a
+clean clone to a pull request.
 
 [`CLAUDE.md`](CLAUDE.md) is the long-form guide: the architecture, every invariant that has cost
 real time to learn, and why things are the shape they are. It is written for AI coding agents,

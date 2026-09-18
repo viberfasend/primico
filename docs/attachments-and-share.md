@@ -1,5 +1,6 @@
-# Attachments and the Android share sheet
-
+---
+title: "Attachments and the Android share sheet"
+---
 A design for letting Cadence receive text, links, images and files from other apps, and for storing
 what it receives. Written before any of it is built, so the decisions can be argued with cheaply.
 

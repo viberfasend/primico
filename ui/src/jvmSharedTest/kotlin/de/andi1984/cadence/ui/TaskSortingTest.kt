@@ -146,4 +146,50 @@ class TaskSortingTest {
             assertEquals(emptyList<String>(), emptyList<Task>().sortedFor(mode).ids())
         }
     }
+
+    // ── Overdue ──────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `overdue reads bottom-up - most overdue on top, most urgent of the least overdue last`() {
+        val tasks = listOf(
+            task("1d-p1", Priority.P1, due = monday.minusDays(1)),
+            task("3d-p2", Priority.P2, due = monday.minusDays(3)),
+            task("1d-p4", Priority.P4, due = monday.minusDays(1)),
+            task("3d-p1", Priority.P1, due = monday.minusDays(3)),
+            task("1d-p3", Priority.P3, due = monday.minusDays(1)),
+        )
+
+        for (mode in listOf(SortMode.IMPORTANCE, SortMode.DATE)) {
+            assertEquals(
+                "mode $mode",
+                listOf("3d-p2", "3d-p1", "1d-p4", "1d-p3", "1d-p1"),
+                tasks.sortedForOverdue(mode).ids(),
+            )
+        }
+    }
+
+    @Test
+    fun `overdue on the same day and priority falls back to time, then manual position`() {
+        val tasks = listOf(
+            task("untimed", due = monday, sortOrder = 0),
+            task("late-pos", due = monday, dueTime = LocalTime.of(9, 0), sortOrder = 2),
+            task("early-pos", due = monday, dueTime = LocalTime.of(9, 0), sortOrder = 1),
+            task("seven", due = monday, dueTime = LocalTime.of(7, 0)),
+        )
+
+        assertEquals(
+            listOf("seven", "early-pos", "late-pos", "untimed"),
+            tasks.sortedForOverdue(SortMode.IMPORTANCE).ids(),
+        )
+    }
+
+    @Test
+    fun `overdue keeps the manual order in manual mode`() {
+        val tasks = listOf(
+            task("b", Priority.P1, due = monday.minusDays(1), sortOrder = 1),
+            task("a", Priority.P4, due = monday.minusDays(5), sortOrder = 0),
+        )
+
+        assertEquals(listOf("a", "b"), tasks.sortedForOverdue(SortMode.MANUAL).ids())
+    }
 }

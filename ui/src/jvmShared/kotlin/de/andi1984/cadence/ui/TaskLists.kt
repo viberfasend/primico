@@ -157,11 +157,12 @@ fun CadenceUiState.taskList(
  * Overdue first, then what is due today.
  *
  * The two bands are separate lists rather than one sorted run: the overdue band is the red block
- * pinned above the day, and a P1 due today must not push its way into it.
+ * pinned above the day, and a P1 due today must not push its way into it. The overdue band is
+ * ordered to be read bottom-up ([sortedForOverdue]): least overdue and most urgent last.
  */
 private fun CadenceUiState.todayList(today: LocalDate): TaskList {
     val mode = settings.sortMode
-    val overdue = overdue(today).sortedFor(mode)
+    val overdue = overdue(today).sortedForOverdue(mode)
     val dueToday = tasks
         .filter { it.isDueOn(today) && (settings.showCompleted || !it.isDone) }
         .sortedFor(mode)
@@ -216,7 +217,7 @@ private fun CadenceUiState.projectList(
     val sections = sectionsIn(projectId)
 
     if (sections.isEmpty()) {
-        val overdue = tasks.filter { it.isOverdue(today) }
+        val overdue = tasks.filter { it.isOverdue(today) }.sortedForOverdue(settings.sortMode)
         val rest = tasks.filterNot { it.isOverdue(today) }
         return TaskList(
             buildList {

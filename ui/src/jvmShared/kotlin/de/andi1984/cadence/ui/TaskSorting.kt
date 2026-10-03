@@ -35,3 +35,24 @@ fun List<Task>.sortedFor(mode: SortMode): List<Task> = when (mode) {
             .thenBy { it.id },
     )
 }
+
+/**
+ * The overdue band's own order, built for reading it **bottom-up**: the most overdue task sits at
+ * the top and the least overdue at the bottom, right above what is due today. Within one due
+ * date the order of importance is reversed too, so the most urgent of the least overdue tasks is
+ * the very last row of the band — the first one a thumb scrolling up from the day reaches.
+ *
+ * The importance and date modes share it, since both would otherwise read top-down against the
+ * direction the band is worked through; [SortMode.MANUAL] keeps the user's own order.
+ */
+fun List<Task>.sortedForOverdue(mode: SortMode): List<Task> = when (mode) {
+    SortMode.IMPORTANCE, SortMode.DATE -> sortedWith(
+        compareBy<Task> { it.isDone }
+            .thenBy { it.dueDate ?: FAR_FUTURE }
+            .thenByDescending { it.priority.level }
+            .thenBy { it.dueTime ?: END_OF_DAY }
+            .thenBy { it.sortOrder },
+    )
+
+    SortMode.MANUAL -> sortedFor(mode)
+}

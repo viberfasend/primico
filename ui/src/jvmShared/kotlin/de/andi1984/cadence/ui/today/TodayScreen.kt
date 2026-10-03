@@ -217,7 +217,9 @@ private fun OverdueBlock(
     onToggle: (Task) -> Unit,
 ) {
     val cadenceColors = LocalCadenceColors.current
-    val visible = if (expanded) tasks else tasks.take(2)
+    // The band reads bottom-up (least overdue and most urgent last), so the collapsed preview is
+    // its last two rows and "show more" opens the older ones above them.
+    val visible = if (expanded) tasks else tasks.takeLast(2)
     val hidden = tasks.size - visible.size
 
     Column(
@@ -262,20 +264,6 @@ private fun OverdueBlock(
             }
         }
 
-        visible.forEach { task ->
-            TaskRow(
-                task = task,
-                projectLabel = state.projectLabel(task),
-                today = today,
-                onToggle = { onToggle(task) },
-                onClick = { onTaskClick(task) },
-                overdueStyle = true,
-                parentTitle = state.parentOf(task)?.title,
-                subtaskProgress = state.subtaskProgress(task.id),
-                attachmentCount = state.attachmentCount(task.id),
-            )
-        }
-
         if (hidden > 0) {
             Row(
                 modifier = Modifier
@@ -292,6 +280,20 @@ private fun OverdueBlock(
                     color = cadenceColors.onOverdue,
                 )
             }
+        }
+
+        visible.forEach { task ->
+            TaskRow(
+                task = task,
+                projectLabel = state.projectLabel(task),
+                today = today,
+                onToggle = { onToggle(task) },
+                onClick = { onTaskClick(task) },
+                overdueStyle = true,
+                parentTitle = state.parentOf(task)?.title,
+                subtaskProgress = state.subtaskProgress(task.id),
+                attachmentCount = state.attachmentCount(task.id),
+            )
         }
     }
 }

@@ -36,6 +36,13 @@ Most todo apps sort by date and let priority colour the rows. Primico sorts by w
 urgent task without a date is never buried under a pile of dated chores. `SortMode.DATE` and
 `SortMode.MANUAL` are the explicit opt-outs the sort chips offer.
 
+The **overdue band** is the one exception, and it is worked through from the bottom up:
+`sortedForOverdue` puts the most overdue task at the top and the least overdue at the bottom,
+right above what is due today, and within one due date it reverses importance too — so the last
+row of the band is the most urgent of the most recent misses. It applies in both the importance
+and the date mode; `SortMode.MANUAL` keeps the manual order there as everywhere. Collapsed, the
+Today screen's overdue block previews those last two rows.
+
 Priority is never colour alone: `PrioritySpine` always pairs its bars with the `P1`…`P4` label.
 
 ## Projects: a folder, one level deep

@@ -92,6 +92,22 @@ class TaskListsTest {
     }
 
     @Test
+    fun `Today's overdue band ends with the least overdue, most urgent task`() {
+        val list = state(
+            tasks = listOf(
+                task("yesterday-p1", due = today.minusDays(1), priority = Priority.P1),
+                task("last-week", due = today.minusDays(7), priority = Priority.P1),
+                task("yesterday-p4", due = today.minusDays(1), priority = Priority.P4),
+            ),
+        ).taskList(TaskView.Today, today)
+
+        assertEquals(
+            listOf("last-week", "yesterday-p4", "yesterday-p1"),
+            list.band(BandHeading.Overdue)?.ids(),
+        )
+    }
+
+    @Test
     fun `Today hides a completed task unless the setting says otherwise`() {
         val tasks = listOf(task("open", due = today), task("done", due = today, done = true))
 
@@ -202,6 +218,20 @@ class TaskListsTest {
         )
         assertEquals(listOf("late"), list.bands[0].ids())
         assertEquals(listOf("rest"), list.bands[1].ids())
+    }
+
+    @Test
+    fun `a project's overdue band reads bottom-up like Today's`() {
+        val list = state(
+            tasks = listOf(
+                task("1d-p1", projectId = "p", due = today.minusDays(1), priority = Priority.P1),
+                task("4d-p1", projectId = "p", due = today.minusDays(4), priority = Priority.P1),
+                task("1d-p3", projectId = "p", due = today.minusDays(1), priority = Priority.P3),
+            ),
+            projects = listOf(Project(id = "p", name = "Home")),
+        ).taskList(TaskView.Project("p"), today)
+
+        assertEquals(listOf("4d-p1", "1d-p3", "1d-p1"), list.band(BandHeading.Overdue)?.ids())
     }
 
     @Test

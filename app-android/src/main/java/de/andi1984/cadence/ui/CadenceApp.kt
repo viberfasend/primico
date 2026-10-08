@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -79,6 +80,16 @@ object Routes {
     fun tag(id: String) = "tag/$id"
 }
 
+/**
+ * Back from a screen the app may have *started* on. A reminder or a widget row opens a task, and
+ * a widget header a project or a tag, as the NavHost's start destination — so there is nothing
+ * beneath it, and a plain `popBackStack()` popped the only entry and left a blank window behind
+ * the back arrow. Landing on Today instead is where the app would have opened anyway.
+ */
+private fun NavHostController.popOrHome() {
+    if (!popBackStack()) navigate(Routes.TODAY)
+}
+
 private data class BottomDestination(
     val route: String,
     val label: StringResource,
@@ -98,9 +109,12 @@ fun CadenceApp(
     // [startDestination] rather than replacing it, so "add a task" leaves the user where they
     // would otherwise have landed once the sheet is dismissed.
     openQuickAdd: Boolean = false,
-    // Voice capture (#46): the text Assistant heard, already routed through the same composer —
-    // see MainActivity's reading of AppActionsIntents.EXTRA_ITEM_TEXT.
-    voiceQuickAddText: String? = null,
+    // The project an opened-on-launch sheet files into — a project widget's "+" button.
+    initialQuickAddProjectId: String? = null,
+    // Text the sheet opens with: what Assistant heard for voice capture (#46), or a tag widget's
+    // `@handle ` — see MainActivity's reading of AppActionsIntents.EXTRA_ITEM_TEXT and
+    // WidgetIntents.EXTRA_QUICK_ADD_TEXT. Either way it goes through the same composer.
+    quickAddText: String? = null,
 ) {
     val navController = rememberNavController()
     val backupFilePicker = rememberSafBackupFilePicker()
@@ -123,10 +137,10 @@ fun CadenceApp(
         }
     }
 
-    var quickAddOpen by remember { mutableStateOf(openQuickAdd || voiceQuickAddText != null) }
-    var quickAddProjectId by remember { mutableStateOf<String?>(null) }
+    var quickAddOpen by remember { mutableStateOf(openQuickAdd || quickAddText != null) }
+    var quickAddProjectId by remember { mutableStateOf(initialQuickAddProjectId) }
     // Consumed once: a later, manually opened sheet must not resurrect Assistant's transcript.
-    var pendingVoiceQuickAddText by remember { mutableStateOf(voiceQuickAddText) }
+    var pendingVoiceQuickAddText by remember { mutableStateOf(quickAddText) }
 
     val destinations = listOf(
         BottomDestination(Routes.TODAY, Res.string.nav_today, AppIcons.Today),
@@ -282,7 +296,7 @@ fun CadenceApp(
                         tagId = entry.arguments?.getString("tagId"),
                         state = state,
                         today = today,
-                        onBack = { navController.popBackStack() },
+                        onBack = { navController.popOrHome() },
                         onTaskClick = { navController.navigate(Routes.task(it.id)) },
                         onToggle = viewModel::toggleTask,
                     )
@@ -333,13 +347,13 @@ fun CadenceApp(
                         task = task,
                         state = state,
                         today = today,
-                        onBack = { navController.popBackStack() },
+                        onBack = { navController.popOrHome() },
                         onSave = viewModel::saveTask,
                         onToggle = viewModel::toggleTask,
                         onDelete = {
                             viewModel.deleteTask(it)
                             // Removing a subtask keeps you on the task you were looking at.
-                            if (it.id == task?.id) navController.popBackStack()
+                            if (it.id == task?.id) navController.popOrHome()
                         },
                         onSnooze = { viewModel.snooze(it) },
                         onOpenTask = { navController.navigate(Routes.task(it.id)) },
@@ -363,7 +377,7 @@ fun CadenceApp(
                         projectId = projectId,
                         state = state,
                         today = today,
-                        onBack = { navController.popBackStack() },
+                        onBack = { navController.popOrHome() },
                         onTaskClick = { navController.navigate(Routes.task(it.id)) },
                         onProjectClick = { navController.navigate(Routes.project(it.id)) },
                         onToggle = viewModel::toggleTask,

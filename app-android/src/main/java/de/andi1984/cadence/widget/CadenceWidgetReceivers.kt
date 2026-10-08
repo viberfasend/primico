@@ -18,3 +18,15 @@ class CadenceNextTaskWidgetReceiver : GlanceAppWidgetReceiver() {
 class CadenceQuickAddWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = CadenceQuickAddWidget()
 }
+
+class CadenceAgendaWidgetReceiver : GlanceAppWidgetReceiver() {
+    override val glanceAppWidget: GlanceAppWidget = CadenceAgendaWidget()
+}
+
+class CadenceListWidgetReceiver : GlanceAppWidgetReceiver() {
+    override val glanceAppWidget: GlanceAppWidget = CadenceListWidget()
+}
+
+class CadenceProgressWidgetReceiver : GlanceAppWidgetReceiver() {
+    override val glanceAppWidget: GlanceAppWidget = CadenceProgressWidget()
+}

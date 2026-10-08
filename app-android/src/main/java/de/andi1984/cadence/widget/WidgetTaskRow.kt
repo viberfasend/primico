@@ -30,8 +30,11 @@ import androidx.glance.unit.ColorProvider
 import de.andi1984.cadence.R
 import de.andi1984.cadence.domain.model.Task
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.time.format.TextStyle as DateTextStyle
+import java.util.Locale
 
 /**
  * One task row, shared by every list widget so they read as one family rather than as unrelated
@@ -147,18 +150,47 @@ fun TaskWidgetRow(
 }
 
 private fun dueLabel(context: Context, task: Task, today: LocalDate): String {
+    val dueDate = task.dueDate
     val dueTime = task.dueTime
     return when {
         task.isDone -> context.getString(R.string.widget_done)
         task.isOverdue(today) -> context.getString(R.string.widget_overdue)
-        task.isDueOn(today) && dueTime != null ->
-            // Locale-formatted by java.time, the same source the quick-add grammar trusts for
-            // weekday names — a pattern of our own here would be a second clock format to keep
-            // in step with the app's.
-            dueTime.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
-        task.isDueOn(today) -> context.getString(R.string.widget_due_today)
-        task.dueDate == null -> context.getString(R.string.widget_no_due_date)
-        else -> task.dueDate.toString()
+        dueDate == null -> context.getString(R.string.widget_no_due_date)
+        dueDate == today && dueTime != null -> timeLabel(context, dueTime)
+        dueDate == today -> context.getString(R.string.widget_due_today)
+        dueTime != null ->
+            context.getString(R.string.widget_day_at_time, dayLabel(context, dueDate, today), timeLabel(context, dueTime))
+        else -> dayLabel(context, dueDate, today)
+    }
+}
+
+/**
+ * The language the widget's words are in. Android 13's per-app picker can set Primico apart from
+ * the system, and `context.getString` already follows it — `Locale.getDefault()` would format the
+ * dates in one language and the labels around them in another.
+ */
+internal fun widgetLocale(context: Context): Locale = context.resources.configuration.locales[0]
+
+/**
+ * Locale-formatted by java.time, the same source the quick-add grammar trusts for weekday names —
+ * a pattern of our own here would be a second clock format to keep in step with the app's.
+ */
+internal fun timeLabel(context: Context, time: LocalTime): String =
+    time.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(widgetLocale(context)))
+
+/**
+ * A future day the way someone says it: "Tomorrow", a weekday within the coming week, a date
+ * beyond that. It used to be `LocalDate.toString()` — ISO `2026-10-09` on a home screen, in
+ * either language.
+ */
+internal fun dayLabel(context: Context, date: LocalDate, today: LocalDate): String {
+    val locale = widgetLocale(context)
+    return when {
+        date == today -> context.getString(R.string.widget_due_today)
+        date == today.plusDays(1) -> context.getString(R.string.widget_tomorrow)
+        date.isAfter(today) && date.isBefore(today.plusDays(7)) ->
+            date.dayOfWeek.getDisplayName(DateTextStyle.FULL, locale)
+        else -> date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale))
     }
 }
 

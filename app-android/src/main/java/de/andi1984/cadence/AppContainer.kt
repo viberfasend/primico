@@ -13,6 +13,7 @@ import de.andi1984.cadence.data.settings.SharedPrefsSettingsStore
 import de.andi1984.cadence.reminders.AlarmReminderScheduler
 import de.andi1984.cadence.ui.ViewModelAdapters
 import de.andi1984.cadence.widget.WidgetUpdater
+import de.andi1984.cadence.widget.widgetUiStateFlow
 import kotlinx.coroutines.launch
 
 /**
@@ -67,11 +68,15 @@ class AppContainer(context: Context) {
         // after themselves: a tap redraws through `ToggleTaskCallback`, midnight through
         // `WidgetMidnightRefresh`, and `updatePeriodMillis` is the half-hourly floor under both.
         //
+        // It watches everything a widget draws, not only the tasks: a renamed project or tag is
+        // a list widget's title, and flipping Show completed or the sort order changes every
+        // list — none of which emits on `repository.tasks`.
+        //
         // This stays here rather than moving into `CadenceCore`: it needs a `Context` to reach
         // the widgets, which is exactly the kind of platform-specific event binding that does
         // not belong in `:core`.
         applicationScope.launch {
-            repository.tasks.collect { WidgetUpdater.refreshAll(context) }
+            widgetUiStateFlow().collect { WidgetUpdater.refreshAll(context) }
         }
     }
 }

@@ -33,4 +33,34 @@
         <item quantity="other">%1$d tasks open</item>
     </plurals>
     <string name="widget_all_done">All done</string>
+    <string name="widget_agenda_title">Agenda</string>
+    <string name="widget_agenda_empty">Nothing planned — tap to add a task</string>
+    <string name="widget_agenda_description">Overdue, today and the days ahead in one scrolling list</string>
+    <string name="widget_tomorrow">Tomorrow</string>
+    <!-- A row's due line for a later day with a time: %1$s is the day ("Tomorrow", "Friday"), %2$s the time. -->
+    <string name="widget_day_at_time">%1$s, %2$s</string>
+    <!-- Band labels, the same words the project screen uses. -->
+    <string name="widget_band_all">All tasks</string>
+    <string name="widget_band_ungrouped">No section</string>
+
+    <string name="widget_list_description">One project or tag of your choice</string>
+    <string name="widget_list_choose">Tap to choose a project or tag</string>
+    <string name="widget_list_missing">This list no longer exists — tap to choose another</string>
+    <string name="widget_list_empty">Nothing here — tap to add a task</string>
+    <string name="widget_list_config_title">Show on the home screen</string>
+    <string name="widget_list_config_empty">There are no projects or tags yet. Create one in Primico, then add the widget again.</string>
+    <string name="widget_list_config_projects">Projects</string>
+    <string name="widget_list_config_tags">Tags</string>
+
+    <string name="widget_progress_description">How far through today you are, as a ring</string>
+    <string name="widget_progress_nothing">Nothing due today</string>
+    <!-- %1$d tasks done out of %2$d on today's plate; the quantity is the total. -->
+    <plurals name="widget_progress_done">
+        <item quantity="one">%1$d of %2$d task done</item>
+        <item quantity="other">%1$d of %2$d tasks done</item>
+    </plurals>
+    <plurals name="widget_progress_overdue">
+        <item quantity="one">%1$d overdue</item>
+        <item quantity="other">%1$d overdue</item>
+    </plurals>
 </resources>

@@ -59,6 +59,23 @@
             android:noHistory="true" />
 
         <!--
+            The list widget's picker. Exported because the launcher starts it — the
+            APPWIDGET_CONFIGURE contract — and it refuses any widget id that is not one of this
+            app's list widgets. taskAffinity="" for the same reason as the toggle above: picking a
+            list from the home screen must not resume or reorder the app's own task.
+        -->
+        <activity
+            android:name=".widget.WidgetListConfigActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Cadence"
+            android:taskAffinity=""
+            android:excludeFromRecents="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
+        <!--
             Hands one attachment blob to a viewer as a content:// uri, since a file under filesDir
             is unreadable to every other app and a file:// uri throws since Android 7. Not
             exported: only this app may ask it for a uri, and the grant travels with the intent
@@ -147,6 +164,39 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/quick_add_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.CadenceAgendaWidgetReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/agenda_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.CadenceListWidgetReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/list_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.CadenceProgressWidgetReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/progress_widget_info" />
         </receiver>
     </application>
 

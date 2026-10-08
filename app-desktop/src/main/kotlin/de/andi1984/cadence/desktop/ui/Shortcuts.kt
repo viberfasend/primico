@@ -9,6 +9,9 @@ import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.utf16CodePoint
+import de.andi1984.cadence.ui.components.HintedAction
+import de.andi1984.cadence.ui.components.ShortcutHints
 import de.andi1984.cadence.ui.resources.Res
 import de.andi1984.cadence.ui.resources.*
 import org.jetbrains.compose.resources.StringResource
@@ -16,9 +19,10 @@ import org.jetbrains.compose.resources.StringResource
 /**
  * Every shortcut the window answers to, as data.
  *
- * One table, two readers: `main()` dispatches from it and [ShortcutSheet] lists it. A shortcut
- * that exists but is not documented, or documented but not wired, is not possible here — which is
- * the whole reason this is a list rather than a `when` over key codes.
+ * One table, three readers: `main()` dispatches from it, [ShortcutSheet] lists it, and [keysFor]
+ * hands the hints — tooltips, palette chips, menu rows — their keys. A shortcut that exists but is
+ * not documented, or documented but not wired, is not possible here — which is the whole reason
+ * this is a list rather than a `when` over key codes.
  */
 enum class ShortcutGroup(val title: StringResource) {
     Global(Res.string.shortcuts_group_global),
@@ -39,10 +43,18 @@ data class Modifiers(
     val shift: Boolean = false,
     val alt: Boolean = false,
 ) {
-    fun matches(event: KeyEvent): Boolean {
-        val primaryHeld = if (isMac) event.isMetaPressed else event.isCtrlPressed
-        return primaryHeld == primary && event.isShiftPressed == shift && event.isAltPressed == alt
-    }
+    fun matches(event: KeyEvent): Boolean =
+        primaryHeld(event) == primary && event.isShiftPressed == shift && event.isAltPressed == alt
+
+    /**
+     * The same, minus Shift — for a shortcut matched on the character it types, where Shift is
+     * whatever the layout needs to reach that character and not part of the shortcut at all.
+     */
+    fun matchesIgnoringShift(event: KeyEvent): Boolean =
+        primaryHeld(event) == primary && event.isAltPressed == alt
+
+    private fun primaryHeld(event: KeyEvent): Boolean =
+        if (isMac) event.isMetaPressed else event.isCtrlPressed
 
     /** "Ctrl+Shift" / "⌘⇧", for the cheat sheet. */
     fun label(): String = buildList {
@@ -92,9 +104,23 @@ data class Shortcut(
     val label: StringResource,
     /** How the key itself is written in the sheet — `Key` has no printable name of its own. */
     val keyLabel: String,
+    /**
+     * Match on the character typed rather than on [key], for a shortcut that *is* a character.
+     *
+     * `?` is `Shift`+`/` on a US layout and `Shift`+`ß` on a German one, where `/` is `Shift`+`7`:
+     * bound to the physical slash key, the cheat sheet could not be opened from a QWERTZ keyboard
+     * at all. [key] still says which key it is on a US layout, for nothing but this comment's sake.
+     */
+    val char: Char? = null,
 ) {
-    fun matches(event: KeyEvent): Boolean =
-        event.type == KeyEventType.KeyDown && event.key == key && modifiers.matches(event)
+    fun matches(event: KeyEvent): Boolean {
+        if (event.type != KeyEventType.KeyDown) return false
+        return if (char != null) {
+            event.utf16CodePoint == char.code && modifiers.matchesIgnoringShift(event)
+        } else {
+            event.key == key && modifiers.matches(event)
+        }
+    }
 
     /** "Ctrl+K", or just "?" for a bare key. */
     fun combination(): String {
@@ -113,18 +139,21 @@ private val primary = Modifiers(primary = true)
  * has taken them first, so typing into the quick-add field never completes a task.
  */
 private val SELECTION_SHORTCUTS: List<Shortcut> = listOf(
-    Shortcut(ShortcutAction.SelectNext, Key.J, Modifiers(), ShortcutGroup.Selection, Res.string.action_more, "J"),
+    Shortcut(
+        ShortcutAction.SelectNext, Key.J, Modifiers(), ShortcutGroup.Selection,
+        Res.string.shortcut_select_next, "J",
+    ),
     Shortcut(
         ShortcutAction.SelectPrevious, Key.K, Modifiers(), ShortcutGroup.Selection,
-        Res.string.action_back, "K",
+        Res.string.shortcut_select_previous, "K",
     ),
     Shortcut(
         ShortcutAction.SelectNext, Key.DirectionDown, Modifiers(), ShortcutGroup.Selection,
-        Res.string.action_more, "↓",
+        Res.string.shortcut_select_next, "↓",
     ),
     Shortcut(
         ShortcutAction.SelectPrevious, Key.DirectionUp, Modifiers(), ShortcutGroup.Selection,
-        Res.string.action_back, "↑",
+        Res.string.shortcut_select_previous, "↑",
     ),
     Shortcut(
         ShortcutAction.OpenSelected, Key.Enter, Modifiers(), ShortcutGroup.Selection,
@@ -193,8 +222,8 @@ val CADENCE_SHORTCUTS: List<Shortcut> = listOf(
     ),
     Shortcut(ShortcutAction.Undo, Key.Z, primary, ShortcutGroup.Global, Res.string.undo_action, "Z"),
     Shortcut(
-        ShortcutAction.ShowShortcuts, Key.Slash, Modifiers(shift = true), ShortcutGroup.Global,
-        Res.string.command_show_shortcuts, "?",
+        ShortcutAction.ShowShortcuts, Key.Slash, Modifiers(), ShortcutGroup.Global,
+        Res.string.command_show_shortcuts, "?", char = '?',
     ),
     Shortcut(
         ShortcutAction.Back, Key.DirectionLeft, Modifiers(alt = true), ShortcutGroup.Navigation,
@@ -202,11 +231,11 @@ val CADENCE_SHORTCUTS: List<Shortcut> = listOf(
     ),
     Shortcut(
         ShortcutAction.Forward, Key.DirectionRight, Modifiers(alt = true), ShortcutGroup.Navigation,
-        Res.string.action_more, "→",
+        Res.string.shortcut_forward, "→",
     ),
     Shortcut(
         ShortcutAction.Close, Key.Escape, Modifiers(), ShortcutGroup.Navigation,
-        Res.string.action_cancel, "Esc",
+        Res.string.shortcut_close, "Esc",
     ),
     Shortcut(
         ShortcutAction.GoToday, Key.One, primary, ShortcutGroup.Navigation,
@@ -229,3 +258,35 @@ val CADENCE_SHORTCUTS: List<Shortcut> = listOf(
 /** The action [event] asks for, or null if the table has nothing for it. */
 fun shortcutFor(event: KeyEvent): ShortcutAction? =
     CADENCE_SHORTCUTS.firstOrNull { it.matches(event) }?.action
+
+/**
+ * "Ctrl+N" for [action], or null if nothing in the table reaches it.
+ *
+ * The table's third reader, after the dispatcher and the sheet: every tooltip, palette chip and
+ * menu hint gets its keys from here, so none of them can name a key the window ignores. An action
+ * with two rows (`J` and `↓`) is hinted by its first, which is why the letter comes first.
+ */
+fun keysFor(action: ShortcutAction): String? =
+    CADENCE_SHORTCUTS.firstOrNull { it.action == action }?.combination()
+
+/**
+ * What the shell answers `:ui`'s [HintedAction]s with — provided around the window's content, so a
+ * screen in `:ui` can say "Search  Ctrl+F" without the table moving out of this module.
+ */
+val DesktopShortcutHints = ShortcutHints { hinted ->
+    keysFor(
+        when (hinted) {
+            HintedAction.QuickAdd -> ShortcutAction.QuickAdd
+            HintedAction.Search -> ShortcutAction.Search
+            HintedAction.Settings -> ShortcutAction.Settings
+            HintedAction.SyncNow -> ShortcutAction.SyncNow
+            HintedAction.OpenTask -> ShortcutAction.OpenSelected
+            HintedAction.ToggleTask -> ShortcutAction.ToggleSelected
+            HintedAction.DeleteTask -> ShortcutAction.DeleteSelected
+            HintedAction.DueToday -> ShortcutAction.SelectedDueToday
+            HintedAction.DueTomorrow -> ShortcutAction.SelectedDueTomorrow
+            HintedAction.DueNextWeek -> ShortcutAction.SelectedDueNextWeek
+            HintedAction.NoDueDate -> ShortcutAction.SelectedNoDueDate
+        },
+    )
+}

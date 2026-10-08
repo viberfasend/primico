@@ -37,7 +37,9 @@ number is not reserved by the plan:
 - the adaptive shell, one navigator on every platform ([#48](https://github.com/viberfasend/primico/issues/48));
 - the `TaskQuery` grammar and where saved views are stored ([#149](https://github.com/viberfasend/primico/issues/149));
 - how recurrence is drawn on a calendar ([#148](https://github.com/viberfasend/primico/issues/148));
-- end-to-end encrypted sync ([#152](https://github.com/viberfasend/primico/issues/152)).
+- end-to-end encrypted sync ([#152](https://github.com/viberfasend/primico/issues/152));
+- one desktop process, and launcher actions from the dock, the app menu and the jump list
+  ([plan](../plans/desktop-launcher-actions.md)).
 
 ## Writing one
 

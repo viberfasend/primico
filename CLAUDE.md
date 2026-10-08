@@ -265,6 +265,13 @@ around its content and `TaskRow` reads them, which is how seven screens gained b
 single signature changing. `assembleDebug` compiling is therefore *not* proof Android is
 unaffected by a change to either — the defaults are what it runs.
 
+A third, `LocalShortcutHints`, follows the same rule for **shortcut hints** — the tooltips,
+palette chips, menu-row keys and empty-state line that show a pointer user the keys. `:ui` names
+the verb (`HintedAction`), `:app-desktop`'s `DesktopShortcutHints` answers from the shortcut table
+through `keysFor`, and Android's default answers `null`, so nothing is drawn. Never write a key
+combination into a hint by hand: the table in `Shortcuts.kt` is the only place one is spelled, and
+`ShortcutsTest` checks every `HintedAction` resolves against it.
+
 **Storage is a port, not a layer, and it lives in `:core` entirely (ADR 0001, phase 2).**
 `CadenceRepository` reaches storage through the store interfaces in `data/Stores.kt` (`TaskStore`,
 `ProjectStore`, `SectionStore`, `TagStore`, `BackupStore`, `AttachmentStore`) that speak `Task`

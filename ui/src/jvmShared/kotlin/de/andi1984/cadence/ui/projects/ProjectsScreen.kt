@@ -45,6 +45,8 @@ import de.andi1984.cadence.domain.model.toTree
 import de.andi1984.cadence.ui.CadenceUiState
 import de.andi1984.cadence.ui.components.AppIcons
 import de.andi1984.cadence.ui.components.EmptyState
+import de.andi1984.cadence.ui.components.HintedAction
+import de.andi1984.cadence.ui.components.ShortcutTooltip
 import de.andi1984.cadence.ui.components.ProjectSwatch
 import de.andi1984.cadence.ui.components.ScreenHeader
 import de.andi1984.cadence.ui.components.SyncActions
@@ -88,8 +90,11 @@ fun ProjectsScreen(
                     contentDescription = stringResource(Res.string.projects_new),
                 )
             }
-            IconButton(onClick = onSettings) {
-                Icon(AppIcons.Settings, contentDescription = stringResource(Res.string.action_settings))
+            val settingsLabel = stringResource(Res.string.action_settings)
+            ShortcutTooltip(settingsLabel, HintedAction.Settings) {
+                IconButton(onClick = onSettings) {
+                    Icon(AppIcons.Settings, contentDescription = settingsLabel)
+                }
             }
         }
 

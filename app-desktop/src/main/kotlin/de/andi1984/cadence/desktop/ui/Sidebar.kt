@@ -45,6 +45,7 @@ import de.andi1984.cadence.domain.model.Tag
 import de.andi1984.cadence.domain.model.toTree
 import de.andi1984.cadence.ui.CadenceUiState
 import de.andi1984.cadence.ui.components.AppIcons
+import de.andi1984.cadence.ui.components.ShortcutTooltip
 import de.andi1984.cadence.ui.components.CadenceContextMenu
 import de.andi1984.cadence.ui.components.ProjectContextMenuItems
 import de.andi1984.cadence.ui.components.ProjectSwatch
@@ -92,6 +93,7 @@ fun CadenceSidebar(
     onDeleteProject: (Project) -> Unit,
     onNestProject: (Project, String?) -> Unit,
     onAddTask: (String?) -> Unit,
+    onShowShortcuts: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -108,10 +110,15 @@ fun CadenceSidebar(
                 onSwitchTo = onSwitchTo,
                 onExpand = onToggleCollapsed,
                 onAddTask = { onAddTask(null) },
+                onShowShortcuts = onShowShortcuts,
             )
         } else {
             Column(modifier = Modifier.width(workspace.sidebarWidth.dp).fillMaxHeight()) {
-                SidebarHeader(onToggleCollapsed = onToggleCollapsed, onAddTask = { onAddTask(null) })
+                SidebarHeader(
+                    onToggleCollapsed = onToggleCollapsed,
+                    onAddTask = { onAddTask(null) },
+                    onShowShortcuts = onShowShortcuts,
+                )
 
                 LazyColumn(
                     modifier = Modifier.weight(1f),
@@ -295,7 +302,11 @@ fun CadenceSidebar(
 }
 
 @Composable
-private fun SidebarHeader(onToggleCollapsed: () -> Unit, onAddTask: () -> Unit) {
+private fun SidebarHeader(
+    onToggleCollapsed: () -> Unit,
+    onAddTask: () -> Unit,
+    onShowShortcuts: () -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 8.dp, top = 12.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -306,11 +317,30 @@ private fun SidebarHeader(onToggleCollapsed: () -> Unit, onAddTask: () -> Unit) 
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f),
         )
-        IconButton(onClick = onAddTask) {
-            Icon(AppIcons.Add, contentDescription = stringResource(Res.string.nav_add_task))
-        }
-        IconButton(onClick = onToggleCollapsed) {
-            Icon(AppIcons.Sort, contentDescription = stringResource(Res.string.sidebar_toggle))
+        HeaderIconButton(AppIcons.Add, Res.string.command_new_task, ShortcutAction.QuickAdd, onAddTask)
+        // The way to the cheat sheet that does not need the cheat sheet: `?` is only a shortcut
+        // to someone who already knows it is one.
+        HeaderIconButton(
+            AppIcons.Keyboard, Res.string.shortcuts_title, ShortcutAction.ShowShortcuts, onShowShortcuts,
+        )
+        HeaderIconButton(
+            AppIcons.Sort, Res.string.sidebar_toggle, ShortcutAction.ToggleSidebar, onToggleCollapsed,
+        )
+    }
+}
+
+/** An icon button whose tooltip names it and the keys that do the same — "New task  Ctrl+N". */
+@Composable
+private fun HeaderIconButton(
+    icon: ImageVector,
+    label: org.jetbrains.compose.resources.StringResource,
+    action: ShortcutAction,
+    onClick: () -> Unit,
+) {
+    val text = stringResource(label)
+    ShortcutTooltip(label = text, keys = keysFor(action)) {
+        IconButton(onClick = onClick) {
+            Icon(icon, contentDescription = text)
         }
     }
 }
@@ -323,23 +353,29 @@ private fun CollapsedRail(
     onSwitchTo: (Route) -> Unit,
     onExpand: () -> Unit,
     onAddTask: () -> Unit,
+    onShowShortcuts: () -> Unit,
 ) {
     Column(
         modifier = Modifier.width(64.dp).fillMaxHeight().padding(vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        IconButton(onClick = onExpand) {
-            Icon(AppIcons.Sort, contentDescription = stringResource(Res.string.sidebar_toggle))
-        }
-        RailIcon(AppIcons.Add, Res.string.nav_add_task, selected = false, onClick = onAddTask)
+        HeaderIconButton(AppIcons.Sort, Res.string.sidebar_toggle, ShortcutAction.ToggleSidebar, onExpand)
+        RailIcon(AppIcons.Add, Res.string.command_new_task, false, ShortcutAction.QuickAdd, onAddTask)
         Spacer(modifier = Modifier.height(8.dp))
-        RailIcon(AppIcons.Today, Res.string.nav_today, current == Route.Today) { onSwitchTo(Route.Today) }
-        RailIcon(AppIcons.CalendarMonth, Res.string.nav_upcoming, current == Route.Upcoming) {
+        RailIcon(AppIcons.Today, Res.string.nav_today, current == Route.Today, ShortcutAction.GoToday) {
+            onSwitchTo(Route.Today)
+        }
+        RailIcon(
+            AppIcons.CalendarMonth, Res.string.nav_upcoming, current == Route.Upcoming,
+            ShortcutAction.GoUpcoming,
+        ) {
             onSwitchTo(Route.Upcoming)
         }
         Box {
-            RailIcon(AppIcons.Inbox, Res.string.nav_inbox, current == Route.Inbox) { onSwitchTo(Route.Inbox) }
+            RailIcon(AppIcons.Inbox, Res.string.nav_inbox, current == Route.Inbox, ShortcutAction.GoInbox) {
+                onSwitchTo(Route.Inbox)
+            }
             if (inboxCount > 0) {
                 Box(
                     modifier = Modifier
@@ -350,11 +386,12 @@ private fun CollapsedRail(
                 )
             }
         }
-        RailIcon(AppIcons.Folder, Res.string.nav_projects, current == Route.Projects) {
+        RailIcon(AppIcons.Folder, Res.string.nav_projects, current == Route.Projects, ShortcutAction.GoProjects) {
             onSwitchTo(Route.Projects)
         }
         Spacer(modifier = Modifier.weight(1f))
-        RailIcon(AppIcons.Settings, Res.string.settings_title, current == Route.Settings) {
+        RailIcon(AppIcons.Keyboard, Res.string.shortcuts_title, false, ShortcutAction.ShowShortcuts, onShowShortcuts)
+        RailIcon(AppIcons.Settings, Res.string.settings_title, current == Route.Settings, ShortcutAction.Settings) {
             onSwitchTo(Route.Settings)
         }
     }
@@ -365,22 +402,27 @@ private fun RailIcon(
     icon: ImageVector,
     label: org.jetbrains.compose.resources.StringResource,
     selected: Boolean,
+    action: ShortcutAction,
     onClick: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
-    Box(
-        modifier = Modifier
-            .size(44.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (selected) scheme.secondaryContainer else Color.Transparent)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = stringResource(label),
-            tint = if (selected) scheme.onSecondaryContainer else scheme.onSurfaceVariant,
-        )
+    val text = stringResource(label)
+    // The rail has no labels at all, so its tooltip is the only place the name is written.
+    ShortcutTooltip(label = text, keys = keysFor(action)) {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(if (selected) scheme.secondaryContainer else Color.Transparent)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = text,
+                tint = if (selected) scheme.onSecondaryContainer else scheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

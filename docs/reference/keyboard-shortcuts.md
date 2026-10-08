@@ -18,7 +18,24 @@ The same list drives both the dispatcher (`onKeyEvent` in
 [`Main.kt`](../../app-desktop/src/main/kotlin/de/andi1984/cadence/desktop/Main.kt)) and the
 cheat sheet ([`ShortcutSheet.kt`](../../app-desktop/src/main/kotlin/de/andi1984/cadence/desktop/ui/ShortcutSheet.kt)),
 so the two cannot disagree. **Primary** is `Ctrl` on Linux and Windows and `Cmd` on macOS. A
-shortcut matches only with exactly its modifiers held, on key-down.
+shortcut matches only with exactly its modifiers held, on key-down — except `?`, which matches the
+character typed whatever `Shift` the layout needs for it (`Shift`+`ß` on German QWERTZ).
+
+### Where the keys are shown
+
+Besides the cheat sheet, every place below reads its keys from the same table through `keysFor`:
+
+| Where | What |
+|---|---|
+| Icon buttons — sidebar header and rail, Search on Today, Settings on Projects, the refresh button | Hover tooltip: the button's name and its keys |
+| Command palette | The keys beside each command that has them |
+| Task row right-click menu | The selected-row key beside Open, Mark done, Delete and the four due-date items |
+| Empty Today and Inbox | "Press Ctrl+N to add a task." |
+| Sidebar header and rail | A keyboard button that opens the cheat sheet |
+
+The controls in `:ui` ask through `LocalShortcutHints`
+([`ShortcutHints.kt`](../../ui/src/jvmShared/kotlin/de/andi1984/cadence/ui/components/ShortcutHints.kt));
+Android provides none, so none of these are drawn there.
 
 ### Global
 
@@ -31,7 +48,7 @@ shortcut matches only with exactly its modifiers held, on key-down.
 | Primary + `B` | Show or hide the sidebar (collapses it to an icon rail) |
 | Primary + `R` | Sync now — does nothing when signed out |
 | Primary + `Z` | Undo the pending delete |
-| `Shift` + `/` (`?`) | Keyboard shortcuts cheat sheet |
+| `?` (any layout: `Shift` + `/` on US, `Shift` + `ß` on German) | Keyboard shortcuts cheat sheet — also the keyboard button in the sidebar |
 
 ### Navigation
 

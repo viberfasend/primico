@@ -33,6 +33,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
+import de.andi1984.cadence.ui.resources.Res
+import de.andi1984.cadence.ui.resources.*
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun SectionHeader(
@@ -177,6 +180,8 @@ fun EmptyState(
     title: String,
     supporting: String,
     modifier: Modifier = Modifier,
+    /** A third, quieter line — the keyboard way in, where a shell has one ([quickAddHint]). */
+    hint: String? = null,
 ) {
     Column(
         modifier = modifier
@@ -197,8 +202,24 @@ fun EmptyState(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
+        if (hint != null) {
+            Text(
+                text = hint,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
+
+/**
+ * "Press Ctrl+N to add a task." for an empty list, or `null` in a shell that bound no key to quick
+ * add — which is Android, where the FAB already sits on screen saying the same thing.
+ */
+@Composable
+fun quickAddHint(): String? =
+    shortcutKeys(HintedAction.QuickAdd)?.let { stringResource(Res.string.empty_quick_add_hint, it) }
 
 /**
  * A label that shrinks instead of wrapping.

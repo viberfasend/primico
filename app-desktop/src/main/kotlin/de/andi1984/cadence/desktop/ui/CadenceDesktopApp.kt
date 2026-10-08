@@ -31,6 +31,7 @@ import de.andi1984.cadence.ui.CadenceUiState
 import de.andi1984.cadence.ui.CadenceViewModel
 import androidx.compose.runtime.CompositionLocalProvider
 import de.andi1984.cadence.ui.components.LocalRowSelection
+import de.andi1984.cadence.ui.components.LocalShortcutHints
 import de.andi1984.cadence.ui.components.ProvideRowInteractions
 import de.andi1984.cadence.ui.components.RowSelectionState
 import de.andi1984.cadence.ui.components.RowInteractions
@@ -152,7 +153,10 @@ fun CadenceDesktopApp(
     )
 
     DragAndDropHost(state = state, onIntent = viewModel::applyDropIntent) {
-        CompositionLocalProvider(LocalRowSelection provides selection) {
+        CompositionLocalProvider(
+            LocalRowSelection provides selection,
+            LocalShortcutHints provides DesktopShortcutHints,
+        ) {
             ProvideRowInteractions(rowInteractions) {
             Scaffold(
                 modifier = Modifier.fillMaxSize(),
@@ -182,6 +186,7 @@ fun CadenceDesktopApp(
                             viewModel.editProject(project, project.name, project.colorHex, parentId)
                         },
                         onAddTask = ::openQuickAdd,
+                        onShowShortcuts = { shortcutsOpen = true },
                     )
                     VerticalDivider(modifier = Modifier.fillMaxHeight())
 

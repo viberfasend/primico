@@ -537,6 +537,14 @@
     <string name="command_show_shortcuts">Keyboard shortcuts</string>
     <string name="command_toggle_sidebar">Show or hide the sidebar</string>
     <string name="command_go_to">Go to %1$s</string>
+    <!-- The shortcut sheet's own names for the keys that had none of their own and borrowed a
+         button's word ("More", "Back") — which then read wrong on the sheet. -->
+    <string name="shortcut_select_next">Next task</string>
+    <string name="shortcut_select_previous">Previous task</string>
+    <string name="shortcut_forward">Forward</string>
+    <string name="shortcut_close">Close the detail, or go back</string>
+    <!-- Only drawn where a shell bound a key to quick add; %1$s is the keys, e.g. "Ctrl+N". -->
+    <string name="empty_quick_add_hint">Press %1$s to add a task.</string>
     <string name="selection_none">No task selected</string>
     <string name="tray_show">Show Primico</string>
     <string name="tray_quit">Quit</string>

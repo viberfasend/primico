@@ -519,6 +519,11 @@
     <string name="command_show_shortcuts">Tastenkürzel</string>
     <string name="command_toggle_sidebar">Seitenleiste ein- oder ausblenden</string>
     <string name="command_go_to">Zu %1$s</string>
+    <string name="shortcut_select_next">Nächste Aufgabe</string>
+    <string name="shortcut_select_previous">Vorherige Aufgabe</string>
+    <string name="shortcut_forward">Vorwärts</string>
+    <string name="shortcut_close">Detail schließen oder zurück</string>
+    <string name="empty_quick_add_hint">%1$s drücken, um eine Aufgabe hinzuzufügen.</string>
     <string name="selection_none">Keine Aufgabe ausgewählt</string>
     <string name="tray_show">Primico anzeigen</string>
     <string name="tray_quit">Beenden</string>

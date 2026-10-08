@@ -42,6 +42,9 @@ import de.andi1984.cadence.domain.model.Task
 import de.andi1984.cadence.ui.CadenceUiState
 import de.andi1984.cadence.ui.components.AppIcons
 import de.andi1984.cadence.ui.components.EmptyState
+import de.andi1984.cadence.ui.components.HintedAction
+import de.andi1984.cadence.ui.components.ShortcutTooltip
+import de.andi1984.cadence.ui.components.quickAddHint
 import de.andi1984.cadence.ui.components.ScreenHeader
 import de.andi1984.cadence.ui.components.SyncActions
 import de.andi1984.cadence.ui.components.SyncControls
@@ -84,8 +87,11 @@ fun TodayScreen(
             subtitle = "${formatDate(today)} · ${pluralTasks(openCount)}",
         ) {
             SyncActions(status = state.sync.status, controls = syncControls)
-            IconButton(onClick = onSearch) {
-                Icon(AppIcons.Search, contentDescription = stringResource(Res.string.action_search))
+            val searchLabel = stringResource(Res.string.action_search)
+            ShortcutTooltip(searchLabel, HintedAction.Search) {
+                IconButton(onClick = onSearch) {
+                    Icon(AppIcons.Search, contentDescription = searchLabel)
+                }
             }
             Column {
                 IconButton(onClick = { sortMenuOpen = true }) {
@@ -157,6 +163,7 @@ fun TodayScreen(
                         EmptyState(
                             title = stringResource(Res.string.today_empty_title),
                             supporting = stringResource(Res.string.today_empty_supporting),
+                            hint = quickAddHint(),
                         )
                     }
                 } else {

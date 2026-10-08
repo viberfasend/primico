@@ -204,6 +204,10 @@ fun CommandPaletteDialog(
                             item(key = "${match.entry.kind}-${match.entry.id}") {
                                 PaletteRow(
                                     entry = match.entry,
+                                    // Teaching the faster way at the moment someone takes the
+                                    // slower one: the palette is where a verb is looked up, so it
+                                    // is where its key is worth showing.
+                                    keys = commands.firstOrNull { it.entry.id == match.entry.id }?.keys,
                                     selected = index == safeSelection,
                                     onClick = { run(index) },
                                 )
@@ -236,7 +240,7 @@ private fun PaletteGroupHeader(kind: PaletteKind) {
 }
 
 @Composable
-private fun PaletteRow(entry: PaletteEntry, selected: Boolean, onClick: () -> Unit) {
+private fun PaletteRow(entry: PaletteEntry, keys: String?, selected: Boolean, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     Row(
         modifier = Modifier
@@ -277,11 +281,12 @@ private fun PaletteRow(entry: PaletteEntry, selected: Boolean, onClick: () -> Un
                 )
             }
         }
+        keys?.let { KeyCap(it) }
     }
 }
 
-/** A verb the palette can run, paired with the entry that offers it. */
-private class PaletteCommand(val entry: PaletteEntry, val run: () -> Unit)
+/** A verb the palette can run, paired with the entry that offers it and the keys that skip it. */
+private class PaletteCommand(val entry: PaletteEntry, val run: () -> Unit, val keys: String? = null)
 
 @Composable
 private fun paletteCommands(
@@ -294,30 +299,38 @@ private fun paletteCommands(
     onToggleSidebar: () -> Unit,
     onGoTo: (Route) -> Unit,
 ): List<PaletteCommand> {
-    fun command(id: String, title: String, run: () -> Unit) =
-        PaletteCommand(PaletteEntry(id, title, PaletteKind.Command), run)
+    fun command(id: String, title: String, run: () -> Unit, action: ShortcutAction? = null) =
+        PaletteCommand(PaletteEntry(id, title, PaletteKind.Command), run, action?.let(::keysFor))
 
     val goTo = stringResource(Res.string.command_go_to, "")
     val destinations = listOf(
-        Route.Today to stringResource(Res.string.nav_today),
-        Route.Upcoming to stringResource(Res.string.nav_upcoming),
-        Route.Inbox to stringResource(Res.string.nav_inbox),
-        Route.Projects to stringResource(Res.string.nav_projects),
-        Route.Search to stringResource(Res.string.search_title),
-        Route.Settings to stringResource(Res.string.settings_title),
+        Triple(Route.Today, stringResource(Res.string.nav_today), ShortcutAction.GoToday),
+        Triple(Route.Upcoming, stringResource(Res.string.nav_upcoming), ShortcutAction.GoUpcoming),
+        Triple(Route.Inbox, stringResource(Res.string.nav_inbox), ShortcutAction.GoInbox),
+        Triple(Route.Projects, stringResource(Res.string.nav_projects), ShortcutAction.GoProjects),
+        Triple(Route.Search, stringResource(Res.string.search_title), ShortcutAction.Search),
+        Triple(Route.Settings, stringResource(Res.string.settings_title), ShortcutAction.Settings),
     )
 
     return listOf(
-        command("cmd:new-task", stringResource(Res.string.command_new_task), onNewTask),
+        command(
+            "cmd:new-task", stringResource(Res.string.command_new_task), onNewTask, ShortcutAction.QuickAdd,
+        ),
         command("cmd:new-project", stringResource(Res.string.command_new_project), onNewProject),
-        command("cmd:sync", stringResource(Res.string.command_sync_now), onSyncNow),
+        command("cmd:sync", stringResource(Res.string.command_sync_now), onSyncNow, ShortcutAction.SyncNow),
         command("cmd:theme", stringResource(Res.string.command_toggle_theme), onToggleTheme),
         command("cmd:density", stringResource(Res.string.command_toggle_density), onToggleDensity),
-        command("cmd:sidebar", stringResource(Res.string.command_toggle_sidebar), onToggleSidebar),
-        command("cmd:shortcuts", stringResource(Res.string.command_show_shortcuts), onShowShortcuts),
-    ) + destinations.map { (route, name) ->
+        command(
+            "cmd:sidebar", stringResource(Res.string.command_toggle_sidebar), onToggleSidebar,
+            ShortcutAction.ToggleSidebar,
+        ),
+        command(
+            "cmd:shortcuts", stringResource(Res.string.command_show_shortcuts), onShowShortcuts,
+            ShortcutAction.ShowShortcuts,
+        ),
+    ) + destinations.map { (route, name, action) ->
         // "Go to Today" rather than "Today": a command reads as an instruction, and it keeps a
         // view from ranking against a project or task of the same name.
-        command("cmd:go:$name", (goTo + name).trim(), { onGoTo(route) })
+        command("cmd:go:$name", (goTo + name).trim(), { onGoTo(route) }, action)
     }
 }

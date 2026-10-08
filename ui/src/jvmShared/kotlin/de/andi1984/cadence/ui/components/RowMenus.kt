@@ -57,6 +57,7 @@ fun ColumnScope.TaskContextMenuItems(
             CadenceMenuItem(
                 text = stringResource(Res.string.menu_open),
                 icon = AppIcons.Edit,
+                trailing = shortcutKeys(HintedAction.OpenTask),
                 onClick = { dismiss(); onOpen(task) },
             )
             CadenceMenuItem(
@@ -64,6 +65,7 @@ fun ColumnScope.TaskContextMenuItems(
                     if (task.isDone) Res.string.task_mark_not_done else Res.string.task_mark_done,
                 ),
                 icon = AppIcons.Check,
+                trailing = shortcutKeys(HintedAction.ToggleTask),
                 onClick = { dismiss(); onToggle(task) },
             )
             HorizontalDivider()
@@ -109,6 +111,7 @@ fun ColumnScope.TaskContextMenuItems(
             CadenceMenuItem(
                 text = stringResource(Res.string.action_delete),
                 icon = AppIcons.Delete,
+                trailing = shortcutKeys(HintedAction.DeleteTask),
                 onClick = { dismiss(); onDelete(task) },
             )
         }
@@ -130,21 +133,25 @@ fun ColumnScope.TaskContextMenuItems(
             CadenceMenuItem(
                 text = stringResource(Res.string.date_today),
                 icon = AppIcons.Today,
+                trailing = shortcutKeys(HintedAction.DueToday),
                 onClick = { dismiss(); onSetDueDate(task, today) },
             )
             CadenceMenuItem(
                 text = stringResource(Res.string.date_tomorrow),
                 icon = AppIcons.Event,
+                trailing = shortcutKeys(HintedAction.DueTomorrow),
                 onClick = { dismiss(); onSetDueDate(task, today.plusDays(1)) },
             )
             CadenceMenuItem(
                 text = stringResource(Res.string.menu_next_week),
                 icon = AppIcons.CalendarMonth,
+                trailing = shortcutKeys(HintedAction.DueNextWeek),
                 onClick = { dismiss(); onSetDueDate(task, today.plusWeeks(1)) },
             )
             CadenceMenuItem(
                 text = stringResource(Res.string.task_no_due_date),
                 icon = AppIcons.EventBusy,
+                trailing = shortcutKeys(HintedAction.NoDueDate),
                 enabled = task.dueDate != null,
                 onClick = { dismiss(); onSetDueDate(task, null) },
             )

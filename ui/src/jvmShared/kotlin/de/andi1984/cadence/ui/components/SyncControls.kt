@@ -113,12 +113,15 @@ fun SyncActions(status: SyncStatus, controls: SyncControls) {
     }
 
     if (controls.showRefreshControl) {
-        IconButton(onClick = controls.onRefresh) {
-            Icon(
-                imageVector = AppIcons.Refresh,
-                contentDescription = stringResource(Res.string.action_refresh),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        val refreshLabel = stringResource(Res.string.action_refresh)
+        ShortcutTooltip(refreshLabel, HintedAction.SyncNow) {
+            IconButton(onClick = controls.onRefresh) {
+                Icon(
+                    imageVector = AppIcons.Refresh,
+                    contentDescription = refreshLabel,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

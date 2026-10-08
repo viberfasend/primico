@@ -70,8 +70,9 @@ fun ShortcutSheet(onDismiss: () -> Unit) {
     )
 }
 
+/** A key combination drawn as a key — the sheet's rows and the palette's chips. */
 @Composable
-private fun KeyCap(text: String) {
+internal fun KeyCap(text: String) {
     Text(
         text = text,
         style = MaterialTheme.typography.labelMedium,

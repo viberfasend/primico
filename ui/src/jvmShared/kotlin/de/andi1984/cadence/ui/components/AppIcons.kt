@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Inbox
+import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Refresh
@@ -67,6 +68,7 @@ object AppIcons {
     val Flag: ImageVector = Icons.Rounded.Flag
     val Folder: ImageVector = Icons.Rounded.Folder
     val Inbox: ImageVector = Icons.Rounded.Inbox
+    val Keyboard: ImageVector = Icons.Rounded.Keyboard
     val MoreVert: ImageVector = Icons.Rounded.MoreVert
     val Notifications: ImageVector = Icons.Rounded.Notifications
     val Schedule: ImageVector = Icons.Rounded.Schedule

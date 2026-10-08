@@ -59,7 +59,8 @@ no notion of a second pane. Navigation is the one part of the UI that stays per 
 
 Seven screens draw task rows. Giving each of them right-click menus and a drag handle through
 parameters would have changed seven signatures for a feature one shell uses. Instead, two
-composition locals carry it:
+composition locals carry it (a third, for shortcut hints, is
+[below](#one-shortcut-table-three-readers)):
 
 - **`LocalRowInteractions`** — a `RowInteractions` value: the menu callbacks, the state the menus
   need to build their submenus, and `enabled`.
@@ -104,12 +105,27 @@ position in an ordered list). Two rules worth knowing:
 `DragAndDropHost` wraps the desktop window and nothing on Android, where a drag source would
 swallow the list's scroll and then do nothing.
 
-## One shortcut table, two readers
+## One shortcut table, three readers
 
 [`Shortcuts.kt`](../../app-desktop/src/main/kotlin/de/andi1984/cadence/desktop/ui/Shortcuts.kt) is
-data. The window dispatches key events from it, and the `?` cheat sheet is generated from it, so a
-shortcut cannot be wired but undocumented, or documented but dead. `Ctrl` versus `Cmd` is decided
-once, by reading the OS. The full list is in [Keyboard shortcuts](../reference/keyboard-shortcuts.md).
+data. The window dispatches key events from it, the `?` cheat sheet is generated from it, and every
+**hint** reads its keys from it (`keysFor`), so a shortcut cannot be wired but undocumented, or
+documented but dead, and no tooltip can name a key the window ignores. `Ctrl` versus `Cmd` is
+decided once, by reading the OS. The full list is in
+[Keyboard shortcuts](../reference/keyboard-shortcuts.md).
+
+The hints are how a pointer user finds the keys without opening the sheet: a hover tooltip on every
+icon button that has a key ("Search  Ctrl+F"), the keys beside a command in the palette and beside
+an item in a row's right-click menu, a "Press Ctrl+N to add a task." line under the empty Today and
+Inbox, and a keyboard button in the sidebar that opens the sheet. The screens drawing most of them
+live in `:ui`, which cannot see the table, so a third composition local bridges the two:
+**`LocalShortcutHints`** answers a `HintedAction` (the verbs `:ui` draws a control for) with the
+keys, or `null`. `:app-desktop` provides `DesktopShortcutHints`; Android leaves the default, which
+answers `null` to everything, and every hint is then simply not drawn.
+
+A shortcut that *is* a character — `?` — matches on the character typed, not on the physical key:
+`?` is `Shift`+`/` on a US layout but `Shift`+`ß` on a German one, and bound to the slash key the
+sheet could not be opened from QWERTZ at all.
 
 The command palette (`Ctrl`/`Cmd`+`K`) fuzzy-matches commands, projects, tags and tasks. A
 leading `>` narrows it to commands, `#` to projects and `@` to tags — the same characters quick

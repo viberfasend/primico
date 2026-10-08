@@ -36,6 +36,7 @@ import de.andi1984.cadence.domain.model.Task
 import de.andi1984.cadence.ui.CadenceUiState
 import de.andi1984.cadence.ui.components.AppIcons
 import de.andi1984.cadence.ui.components.EmptyState
+import de.andi1984.cadence.ui.components.quickAddHint
 import de.andi1984.cadence.ui.components.ScreenHeader
 import de.andi1984.cadence.ui.components.SyncActions
 import de.andi1984.cadence.ui.components.SyncControls
@@ -117,6 +118,7 @@ fun InboxScreen(
             EmptyState(
                 title = stringResource(Res.string.inbox_empty_title),
                 supporting = stringResource(Res.string.inbox_empty_supporting),
+                hint = quickAddHint(),
             )
             return@Column
         }

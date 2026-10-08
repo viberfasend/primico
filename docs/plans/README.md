@@ -15,5 +15,7 @@ order is the `priority:P0`–`P3` labels on the
   which epic comes first, and why.
 - **[Plan: the desktop power shell](desktop-power-shell.md)** — the plan behind
   [ADR 0003](../adr/0003-desktop-interaction-model.md), now shipped.
+- **[Plan: launcher actions on the desktop](desktop-launcher-actions.md)** — "New task" from
+  the dock, the app menu and the jump list, and the single-instance guard they need first.
 - **[Attachments and the Android share sheet](../attachments-and-share.md)** — the design and
   phases for attachments; phases 0–2 have shipped, and the rest belongs to the interop epic.

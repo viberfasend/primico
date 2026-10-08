@@ -1,6 +1,7 @@
 package de.andi1984.cadence.widget
 
 import android.content.Context
+import android.content.Intent
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
@@ -37,8 +38,11 @@ import de.andi1984.cadence.R
 import de.andi1984.cadence.domain.model.Task
 import de.andi1984.cadence.ui.BandHeading
 import de.andi1984.cadence.ui.CadenceUiState
+import de.andi1984.cadence.ui.DayProgress
+import de.andi1984.cadence.ui.Routes
 import de.andi1984.cadence.ui.TaskList
 import de.andi1984.cadence.ui.TaskView
+import de.andi1984.cadence.ui.dayProgress
 import de.andi1984.cadence.ui.taskList
 import java.time.LocalDate
 
@@ -49,10 +53,12 @@ import java.time.LocalDate
  * the list chrome, the rows, the empty state and the quick-add button are written once. The
  * *scope* is the variable; the presentation is not.
  *
- * A scope is a [TaskView] and two strings, deliberately: `ui/TaskLists.kt` already decides which
- * tasks a list shows and in what order, so a widget names a view rather than deriving one.
- * Deriving is the drift that refactor was made to end — a widget filtering for itself would be a
- * sixth copy of rules that had already gone out of step between two screens.
+ * A scope is a list of [TaskView]s and two strings, deliberately: `ui/TaskLists.kt` already
+ * decides which tasks a list shows and in what order, so a widget names views rather than
+ * deriving one. Deriving is the drift that refactor was made to end — a widget filtering for
+ * itself would be a sixth copy of rules that had already gone out of step between two screens.
+ * More than one view is *concatenation*, never filtering: the agenda is the Today screen's bands
+ * followed by the Upcoming screen's, each exactly as its screen draws it.
  *
  * What comes with that for free is the user's own `showCompleted` and `sortMode`, handled per
  * view the way each screen handles it. `showCompleted` earns a second keep here: without it a
@@ -64,16 +70,68 @@ import java.time.LocalDate
 enum class TaskListScope(
     @StringRes val titleRes: Int,
     @StringRes val emptyRes: Int,
-    val view: TaskView,
+    val views: List<TaskView>,
+    /** The screen the header opens — the one this widget mirrors. */
+    val route: String,
+    /** Whether the header draws [dayProgress] — only where "the day" is the unit of work. */
+    val showsProgress: Boolean,
 ) {
 
     /** What [de.andi1984.cadence.ui.today.TodayScreen] shows: overdue first, then due today. */
-    TODAY(R.string.widget_today_title, R.string.widget_today_empty, TaskView.Today),
+    TODAY(
+        R.string.widget_today_title,
+        R.string.widget_today_empty,
+        listOf(TaskView.Today),
+        Routes.TODAY,
+        showsProgress = true,
+    ),
 
     /** What [de.andi1984.cadence.ui.inbox.InboxScreen] shows: unfiled, parents speaking for
-     *  their steps. */
-    INBOX(R.string.widget_inbox_title, R.string.widget_inbox_empty, TaskView.Inbox),
+     *  their steps. The Inbox is a place, not a plan — half-done means nothing there. */
+    INBOX(
+        R.string.widget_inbox_title,
+        R.string.widget_inbox_empty,
+        listOf(TaskView.Inbox),
+        Routes.INBOX,
+        showsProgress = false,
+    ),
+
+    /**
+     * Today and Upcoming as one scrolling agenda — overdue, today, then one labelled band per
+     * day — for a home screen that wants the week rather than the day. The header opens Today,
+     * where the agenda starts.
+     */
+    AGENDA(
+        R.string.widget_agenda_title,
+        R.string.widget_agenda_empty,
+        listOf(TaskView.Today, TaskView.Upcoming),
+        Routes.TODAY,
+        showsProgress = false,
+    ),
 }
+
+/**
+ * The views' lists end to end — the one place more than one [TaskView] becomes one [TaskList].
+ * Each view keeps its own bands, so a band never mixes two screens' rules.
+ */
+internal fun CadenceUiState.widgetList(views: List<TaskView>, today: LocalDate): TaskList =
+    TaskList(views.flatMap { taskList(it, today).bands })
+
+/**
+ * Everything around the rows that differs between list widgets: the words, where a tap goes, and
+ * whether the day's progress is drawn. The rows, bands, cards and empty state are
+ * [TaskListContent]'s and the same for every list.
+ */
+internal class ListChrome(
+    val title: String,
+    val emptyText: String,
+    /** Where the title opens — the screen this widget mirrors. */
+    val open: Intent,
+    /** Where the "+" and the empty state go — quick-add, preset for the widget's scope. */
+    val quickAdd: Intent,
+    /** The day's progress, drawn under the header; `null` where there is no day to speak of. */
+    val progress: DayProgress?,
+)
 
 /**
  * A scrolling day view for the home screen: every overdue and due-today task reachable without
@@ -109,13 +167,22 @@ abstract class TaskListWidget(private val scope: TaskListScope) : CadenceStateWi
 
     @Composable
     override fun Content(context: Context, state: CadenceUiState?, today: LocalDate) {
-        TaskListContent(context, scope, state?.taskList(scope.view, today), today)
+        val chrome = ListChrome(
+            title = context.getString(scope.titleRes),
+            emptyText = context.getString(scope.emptyRes),
+            open = WidgetIntents.openRoute(context, scope.route),
+            quickAdd = WidgetIntents.openQuickAdd(context),
+            progress = if (scope.showsProgress) state?.dayProgress(today) else null,
+        )
+        TaskListContent(context, chrome, state?.widgetList(scope.views, today), today)
     }
 }
 
 class CadenceTodayWidget : TaskListWidget(TaskListScope.TODAY)
 
 class CadenceInboxWidget : TaskListWidget(TaskListScope.INBOX)
+
+class CadenceAgendaWidget : TaskListWidget(TaskListScope.AGENDA)
 
 /** What one `LazyColumn` position draws: a task card, or the label above a band. */
 private sealed interface ListEntry {
@@ -131,16 +198,15 @@ private sealed interface ListEntry {
  * widget reading its own title aloud. Counts ride on the labels because the collapsed band is
  * exactly what a glance cannot count.
  */
-private fun listEntries(context: Context, list: TaskList): List<ListEntry> {
+private fun listEntries(context: Context, list: TaskList, today: LocalDate): List<ListEntry> {
     val bands = list.bands.filter { it.rows.isNotEmpty() }
-    val labelled = bands.size > 1
+    // A day band is labelled even alone: an agenda holding only Friday's work must not read as
+    // today's.
+    val labelled = bands.size > 1 || bands.any { it.heading is BandHeading.Day }
     return buildList {
         bands.forEach { band ->
             if (labelled) {
-                val label = when (band.heading) {
-                    BandHeading.Overdue -> context.getString(R.string.widget_overdue)
-                    else -> context.getString(R.string.widget_due_today)
-                }
+                val label = bandLabel(context, band.heading, today)
                 add(ListEntry.Heading("$label · ${band.rows.size}", band.heading == BandHeading.Overdue))
             }
             band.rows.forEach { row -> add(ListEntry.Card(row.task)) }
@@ -148,10 +214,24 @@ private fun listEntries(context: Context, list: TaskList): List<ListEntry> {
     }
 }
 
+/**
+ * A band's heading in words — the same words the screen the band comes from uses. `None` only
+ * ever needs a label as the due-today half of the Today list: every other single-band list is
+ * drawn unlabelled.
+ */
+private fun bandLabel(context: Context, heading: BandHeading, today: LocalDate): String = when (heading) {
+    BandHeading.Overdue -> context.getString(R.string.widget_overdue)
+    BandHeading.None -> context.getString(R.string.widget_due_today)
+    BandHeading.Everything -> context.getString(R.string.widget_band_all)
+    BandHeading.Ungrouped -> context.getString(R.string.widget_band_ungrouped)
+    is BandHeading.Named -> heading.section.name
+    is BandHeading.Day -> dayLabel(context, heading.date, today)
+}
+
 @Composable
-private fun TaskListContent(
+internal fun TaskListContent(
     context: Context,
-    scope: TaskListScope,
+    chrome: ListChrome,
     /** `null` only when there is no container to read from — drawn as the header alone. */
     list: TaskList?,
     today: LocalDate,
@@ -163,12 +243,12 @@ private fun TaskListContent(
             .background(GlanceTheme.colors.widgetBackground)
             .cornerRadius(20.dp),
     ) {
-        Header(context, scope, list)
+        Header(context, chrome, list)
         when {
             list == null -> Spacer(GlanceModifier.fillMaxSize())
-            list.tasks.isEmpty() -> EmptyState(context, scope)
+            list.tasks.isEmpty() -> EmptyState(chrome)
             else -> {
-                val entries = listEntries(context, list)
+                val entries = listEntries(context, list, today)
                 LazyColumn(modifier = GlanceModifier.fillMaxSize().padding(bottom = 8.dp)) {
                     itemsIndexed(
                         entries,
@@ -221,15 +301,13 @@ private fun BandLabel(entry: ListEntry.Heading) {
 }
 
 /**
- * Scope label small, the open count large, quick-add as a filled round button — and on Today a
- * hairline of progress under it, done over everything the day holds. The count line answers the
- * arm's-length question; everything text opens the app at the place the widget mirrors.
+ * Scope label small, the open count large, quick-add as a filled round button — and, where the
+ * chrome carries one, a hairline of the day's progress under it. The count line answers the
+ * arm's-length question; the title opens the screen the widget mirrors.
  */
 @Composable
-private fun Header(context: Context, scope: TaskListScope, list: TaskList?) {
-    val tasks = list?.tasks
-    val open = tasks?.count { !it.isDone } ?: 0
-    val done = (tasks?.size ?: 0) - open
+private fun Header(context: Context, chrome: ListChrome, list: TaskList?) {
+    val open = list?.openCount ?: 0
     Column(modifier = GlanceModifier.fillMaxWidth()) {
         Row(
             modifier = GlanceModifier
@@ -240,10 +318,10 @@ private fun Header(context: Context, scope: TaskListScope, list: TaskList?) {
             Column(
                 modifier = GlanceModifier
                     .defaultWeight()
-                    .clickable(actionStartActivity(WidgetIntents.openApp(context))),
+                    .clickable(actionStartActivity(chrome.open)),
             ) {
                 Text(
-                    text = context.getString(scope.titleRes),
+                    text = chrome.title,
                     maxLines = 1,
                     style = TextStyle(
                         color = GlanceTheme.colors.onSurfaceVariant,
@@ -252,7 +330,7 @@ private fun Header(context: Context, scope: TaskListScope, list: TaskList?) {
                     ),
                 )
                 Text(
-                    text = if (tasks == null || open == 0) {
+                    text = if (list == null || open == 0) {
                         context.getString(R.string.widget_all_done)
                     } else {
                         context.resources.getQuantityString(R.plurals.widget_open_count, open, open)
@@ -268,7 +346,7 @@ private fun Header(context: Context, scope: TaskListScope, list: TaskList?) {
             Box(
                 modifier = GlanceModifier
                     .size(44.dp)
-                    .clickable(actionStartActivity(WidgetIntents.openQuickAdd(context))),
+                    .clickable(actionStartActivity(chrome.quickAdd)),
                 contentAlignment = Alignment.Center,
             ) {
                 Box(
@@ -287,11 +365,12 @@ private fun Header(context: Context, scope: TaskListScope, list: TaskList?) {
                 }
             }
         }
-        // Progress only where "the day" is the unit of work. The Inbox is a place, not a plan —
-        // half-done means nothing there.
-        if (scope == TaskListScope.TODAY && tasks != null && tasks.isNotEmpty()) {
+        // Drawn from [dayProgress], not from the rows below: with Show completed off a finished
+        // task leaves the list, and a bar counting the list's done rows sat at zero all day.
+        val progress = chrome.progress
+        if (progress != null && progress.total > 0) {
             LinearProgressIndicator(
-                progress = done.toFloat() / tasks.size,
+                progress = progress.fraction,
                 modifier = GlanceModifier
                     .fillMaxWidth()
                     .height(4.dp)
@@ -309,11 +388,11 @@ private fun Header(context: Context, scope: TaskListScope, list: TaskList?) {
  * "nothing due today" is exactly when someone wants to add something.
  */
 @Composable
-private fun EmptyState(context: Context, scope: TaskListScope) {
+private fun EmptyState(chrome: ListChrome) {
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
-            .clickable(actionStartActivity(WidgetIntents.openQuickAdd(context)))
+            .clickable(actionStartActivity(chrome.quickAdd))
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -326,7 +405,7 @@ private fun EmptyState(context: Context, scope: TaskListScope) {
         )
         Spacer(GlanceModifier.height(8.dp))
         Text(
-            text = context.getString(scope.emptyRes),
+            text = chrome.emptyText,
             style = TextStyle(
                 color = GlanceTheme.colors.onSurfaceVariant,
                 fontSize = 13.sp,

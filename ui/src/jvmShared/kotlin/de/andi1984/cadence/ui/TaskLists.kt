@@ -5,6 +5,7 @@ import de.andi1984.cadence.domain.model.Tag
 import de.andi1984.cadence.domain.model.Task
 import de.andi1984.cadence.domain.model.withoutSupersededOccurrences
 import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * Which list a screen is drawing.
@@ -151,6 +152,51 @@ fun CadenceUiState.taskList(
     is TaskView.Project -> projectList(view.projectId, today, expandedIds)
     is TaskView.Search -> searchList(view.query)
     is TaskView.Tag -> tagList(view.tagId)
+}
+
+/**
+ * How far through its day a person is: what was on today's plate, and how much of it is done.
+ *
+ * Not a count over [taskList]'s Today list, and on purpose. That list follows `showCompleted`,
+ * so with the setting off a finished task leaves it — and a "done" count read from it is zero
+ * all day long. It also drops a late task the moment it is ticked off, because the row is no
+ * longer overdue and was never due today, so finishing yesterday's work would *shrink* the day
+ * instead of advancing it. Progress has to see the work that left the list.
+ *
+ * - **On the plate** is everything open and due today or earlier, plus everything finished that
+ *   was due today, plus everything due earlier that was finished *today*. Undated work and work
+ *   finished ahead of a later due date are not part of today's plan, however welcome.
+ * - **Subtasks count in their own right**, exactly as the date-driven lists show them.
+ * - A recurring task completed today counts once: the finished row is due today, and the
+ *   occurrence it spawned is due on a later day.
+ *
+ * @param zone where "finished today" is measured — `completedAt` is an instant.
+ */
+fun CadenceUiState.dayProgress(today: LocalDate, zone: ZoneId = ZoneId.systemDefault()): DayProgress {
+    var done = 0
+    var open = 0
+    var overdue = 0
+    tasks.forEach { task ->
+        val due = task.dueDate ?: return@forEach
+        if (due.isAfter(today)) return@forEach
+        val finished = task.completedAt
+        when {
+            finished == null -> {
+                open++
+                if (due.isBefore(today)) overdue++
+            }
+            due == today || finished.atZone(zone).toLocalDate() == today -> done++
+        }
+    }
+    return DayProgress(done = done, open = open, overdue = overdue)
+}
+
+/** [dayProgress]'s answer. [open] includes the [overdue] tasks. */
+data class DayProgress(val done: Int, val open: Int, val overdue: Int) {
+    val total: Int get() = done + open
+
+    /** 0 to 1; a day with nothing on it is not "finished", it is empty — read [total] first. */
+    val fraction: Float get() = if (total == 0) 0f else done.toFloat() / total
 }
 
 /**

@@ -33,4 +33,31 @@
         <item quantity="other">%1$d Aufgaben offen</item>
     </plurals>
     <string name="widget_all_done">Alles erledigt</string>
+    <string name="widget_agenda_title">Agenda</string>
+    <string name="widget_agenda_empty">Nichts geplant — zum Anlegen tippen</string>
+    <string name="widget_agenda_description">Überfälliges, heute und die nächsten Tage in einer Liste</string>
+    <string name="widget_tomorrow">Morgen</string>
+    <string name="widget_day_at_time">%1$s, %2$s</string>
+    <string name="widget_band_all">Alle Aufgaben</string>
+    <string name="widget_band_ungrouped">Ohne Abschnitt</string>
+
+    <string name="widget_list_description">Ein Projekt oder Tag deiner Wahl</string>
+    <string name="widget_list_choose">Zum Auswählen eines Projekts oder Tags tippen</string>
+    <string name="widget_list_missing">Diese Liste gibt es nicht mehr — zum Auswählen tippen</string>
+    <string name="widget_list_empty">Hier ist nichts — zum Anlegen tippen</string>
+    <string name="widget_list_config_title">Auf dem Startbildschirm zeigen</string>
+    <string name="widget_list_config_empty">Es gibt noch keine Projekte oder Tags. Lege eins in Primico an und füge das Widget dann erneut hinzu.</string>
+    <string name="widget_list_config_projects">Projekte</string>
+    <string name="widget_list_config_tags">Tags</string>
+
+    <string name="widget_progress_description">Wie weit du mit dem heutigen Tag bist, als Ring</string>
+    <string name="widget_progress_nothing">Heute nichts fällig</string>
+    <plurals name="widget_progress_done">
+        <item quantity="one">%1$d von %2$d Aufgabe erledigt</item>
+        <item quantity="other">%1$d von %2$d Aufgaben erledigt</item>
+    </plurals>
+    <plurals name="widget_progress_overdue">
+        <item quantity="one">%1$d überfällig</item>
+        <item quantity="other">%1$d überfällig</item>
+    </plurals>
 </resources>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    configure: the picker runs when the widget is placed, and its RESULT_CANCELED takes a widget
+    nobody chose a list for back off the home screen. reconfigurable (Android 12+) puts "choose
+    another list" in the launcher's long-press menu; below 12 the widget's own prompt is the way
+    back to the picker, for a list that has been deleted.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/widget_list_description"
+    android:initialLayout="@layout/widget_loading"
+    android:configure="de.andi1984.cadence.widget.WidgetListConfigActivity"
+    android:widgetFeatures="reconfigurable"
+    android:minWidth="180dp"
+    android:minHeight="120dp"
+    android:minResizeWidth="120dp"
+    android:minResizeHeight="80dp"
+    android:targetCellWidth="3"
+    android:targetCellHeight="2"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:updatePeriodMillis="1800000" />

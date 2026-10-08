@@ -6,17 +6,21 @@ Loaded when working under `:app-android`. Everything else about the Android shel
 - **Home-screen widgets are Glance, live in `:app-android/widget/`, and are Android-only.** Glance
   is the only widget toolkit still under development — `RemoteViews` is the legacy API it hides —
   and it has no desktop counterpart, so nothing about widgets belongs in `:ui`. `AppContainer`
-  reconciles them on every `repository.tasks` emission exactly as reminders are reconciled, and
+  reconciles them on every emission of what they draw — `widgetUiStateFlow()`: tasks, projects,
+  sections, tags and settings, so a renamed project or a flipped Show completed redraws too — and
   `WidgetUpdater` is the single list of what exists; `updatePeriodMillis` in each provider-info
   XML is only the fallback for when no process is alive to run that collector. A widget never
-  re-derives what to show: `TaskListScope` is a `TaskView` and two strings, and the widget builds
-  a partial `CadenceUiState` (`widgetUiState()`) purely to call `taskList` on it, so the home
-  screen shows exactly what the screen it mirrors shows — the user's `showCompleted` and
-  `sortMode` included. The model to hold in mind is that **a widget is drawn by a *session* — a
-  WorkManager job Glance starts, keeps for about 45 seconds after the first frame, and closes,
-  composition and all** — and that the process is cold for most of them: a tap from the home
-  screen, a reboot, an APK install, the half-hourly system tick. Every rule below follows from
-  that, and each one cost real time to find:
+  re-derives what to show: `TaskListScope` is a list of `TaskView`s and two strings — the agenda
+  is Today's bands followed by Upcoming's, concatenated, never filtered — and the widget builds a
+  partial `CadenceUiState` (`widgetUiState()`) purely to call `taskList` on it, so the home screen
+  shows exactly what the screen it mirrors shows — the user's `showCompleted` and `sortMode`
+  included. Counts that are not a list are derivations on `CadenceUiState` too: the progress bar
+  and the progress ring both read `dayProgress`, never the Today list's done rows, which leave the
+  list when Show completed is off. The model to hold in mind is that **a widget is drawn by a
+  *session* — a WorkManager job Glance starts, keeps for about 45 seconds after the first frame,
+  and closes, composition and all** — and that the process is cold for most of them: a tap from
+  the home screen, a reboot, an APK install, the half-hourly system tick. Every rule below follows
+  from that, and each one cost real time to find:
   - **Frame one is drawn from a snapshot read before `provideContent`, and every later frame from
     the flow collected inside it — both, never one.** `updateAll` on an *open* session recomposes
     what it has and does not run `provideGlance` again, so a `first()` captured above
@@ -45,9 +49,10 @@ Loaded when working under `:app-android`. Everything else about the Android shel
     list content changes.
   - **The design is bands and cards, derived — never invented — in the widget.** The rows come
     from `taskList` with their bands, so the Overdue/Today labels are the Today screen's own
-    split made visible; the header counts open tasks and draws the day's progress (Today only —
-    the Inbox is a place, not a plan); rows are rounded cards, overdue ones tinted with the error
-    container, completion rings tinted by priority (`widgetPriorityColor`, from the same
+    split made visible; the header counts open tasks, opens the screen the widget mirrors (an
+    allowlisted `EXTRA_ROUTE`, `WidgetIntents.startRoute`), and draws the day's progress (Today
+    only — the Inbox is a place, not a plan); rows are rounded cards, overdue ones tinted with
+    the error container, completion rings tinted by priority (`widgetPriorityColor`, from the same
     `CadenceColors` the app's `LocalCadenceColors` carries). Colour never stands alone: `P1`…`P4`
     is spelled out in the meta line and "Overdue" is written next to it. `cornerRadius` clips on
     Android 12+ and quietly draws square below.
@@ -80,6 +85,18 @@ Loaded when working under `:app-android`. Everything else about the Android shel
     repeat both calls in that order themselves; now they are one line with nothing to get wrong.
     In-app writes need neither: the container's collector redraws and the ViewModel's debounce
     pushes.
+  - **The list widget is configured, and its target lives in its own Glance state.**
+    `CadenceListWidget` shows one project or one tag, picked in `WidgetListConfigActivity` (the
+    provider XML's `android:configure`, `reconfigurable` on 12+) and stored per placed widget as a
+    `ListTarget` in `PreferencesGlanceStateDefinition` — by id, so a rename follows. A target that
+    no longer exists draws a prompt that reopens the picker; it never falls back to another list.
+    The picker is exported because the launcher starts it, and refuses any widget id that is not
+    a `CadenceListWidgetReceiver`'s.
+  - **The progress ring is two white bitmaps, tinted.** Glance has no determinate circular
+    indicator and RemoteViews draws no paths, so `CadenceProgressWidget` paints the track and the
+    arc as bitmaps and colours them with `ColorFilter.tint` — which keeps the colours day/night
+    `ColorProvider`s the launcher swaps on a theme flip, where a bitmap painted in the current
+    theme's colours would stay wrong until the next redraw.
   - **Today turns over at midnight with nothing written**, so `WidgetMidnightRefresh` arms an
     inexact alarm from every `provideGlance` and every `refreshAll` while a task widget exists —
     the widget's version of the screen's midnight `LaunchedEffect` (#115).

@@ -5,6 +5,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import de.andi1984.cadence.AppContainer
 import de.andi1984.cadence.ui.CadenceUiState
+import de.andi1984.cadence.ui.TaskView
 import de.andi1984.cadence.ui.taskList
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -17,15 +18,29 @@ import kotlinx.coroutines.flow.first
  * Building a `CadenceUiState` by hand is what lets a widget ask the app "what does Today show?"
  * rather than working it out again and slowly disagreeing.
  *
- * Only `tasks` and `settings` are filled, because only those two are read by the views the
- * widgets name: `TaskView.Today` and `TaskView.Inbox` derive from the task list, the
- * `showCompleted` flag and the sort mode, and nothing else. A widget scoped to a project would
- * be reaching for `TaskView.Project`, which bands by section — that one has to fill `projects`
- * and `sections` here first, and would be wrong rather than merely incomplete without them.
+ * `tasks`, `projects`, `sections`, `tags` and `settings` are filled — everything a [TaskView]
+ * reads. Today, the Inbox and Upcoming need only the tasks and the settings, but the list widget
+ * names a project or a tag: `TaskView.Project` reaches subprojects through `projects` and bands
+ * by `sections`, and a widget's header needs a project's or tag's *name*. Leaving any of them out
+ * would make that widget wrong rather than merely incomplete, so the flow carries them all and
+ * the one-query-per-table cost is paid once per emission, not per widget. Attachments and sync
+ * state stay out: no widget draws them.
  */
 internal fun AppContainer.widgetUiStateFlow(): Flow<CadenceUiState> =
-    combine(repository.tasks, settingsStore.state) { tasks, settings ->
-        CadenceUiState(tasks = tasks, settings = settings)
+    combine(
+        repository.tasks,
+        repository.projects,
+        repository.sections,
+        repository.tags,
+        settingsStore.state,
+    ) { tasks, projects, sections, tags, settings ->
+        CadenceUiState(
+            tasks = tasks,
+            projects = projects,
+            sections = sections,
+            tags = tags,
+            settings = settings,
+        )
     }
 
 /**

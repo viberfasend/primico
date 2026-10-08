@@ -52,7 +52,7 @@ between your own devices is an optional sign-in against a database you control.
   Several lead times per task.
 - 🖥️ **A real desktop app, not a phone app in a window** — drag and drop, right-click menus, a
   project-tree sidebar, two panes on wide windows and a command palette (`Ctrl`/`Cmd`+`K`).
-- 📱 **Home-screen widgets** on Android — the Today list and a next-task card.
+- 📱 **Home-screen widgets** on Android — Today, Inbox and agenda lists, any project or tag, a next-task card, a progress ring and a quick-add button.
 - 🔄 **Optional sync** — sign in and your devices merge through a Postgres database you host
   yourself, last-writer-wins, tombstones and all. See [Sync](#sync-optional).
 - 💾 **Backup and import** — a versioned JSON file you can read, plus a converter for Todoist

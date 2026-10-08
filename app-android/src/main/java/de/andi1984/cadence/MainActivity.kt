@@ -46,7 +46,11 @@ class MainActivity : ComponentActivity() {
                 intent.getStringExtra(AlarmReminderScheduler.EXTRA_TASK_ID)
             }
             val startDestination = remember(intentTaskId) {
-                if (intentTaskId != null) Routes.task(intentTaskId) else Routes.TODAY
+                when {
+                    intentTaskId != null -> Routes.task(intentTaskId)
+                    // A widget header opens the screen it mirrors — allowlisted, see startRoute.
+                    else -> WidgetIntents.startRoute(intent) ?: Routes.TODAY
+                }
             }
             // The quick-add widget asks for the composer rather than for a screen, so it is a
             // flag rather than a route: the sheet is composable state on top of whatever
@@ -63,6 +67,14 @@ class MainActivity : ComponentActivity() {
             // VIEW intent shape, so it is read once exactly like the widget's flag above.
             val voiceQuickAddText = remember {
                 intent.getStringExtra(AppActionsIntents.EXTRA_ITEM_TEXT)
+            }
+            // A project or tag widget's "+" files into its project, or starts the line with its
+            // `@handle` — the widget's version of a project screen's own add button.
+            val quickAddProjectId = remember {
+                intent.getStringExtra(WidgetIntents.EXTRA_QUICK_ADD_PROJECT)
+            }
+            val quickAddText = remember {
+                voiceQuickAddText ?: intent.getStringExtra(WidgetIntents.EXTRA_QUICK_ADD_TEXT)
             }
 
             // Automatic backup sync, when the user has switched it on, reads the file as the
@@ -90,7 +102,8 @@ class MainActivity : ComponentActivity() {
                     appInfo = appInfo,
                     startDestination = startDestination,
                     openQuickAdd = openQuickAdd,
-                    voiceQuickAddText = voiceQuickAddText,
+                    initialQuickAddProjectId = quickAddProjectId,
+                    quickAddText = quickAddText,
                 )
             }
         }

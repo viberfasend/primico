@@ -134,7 +134,7 @@ desktop `packageVersion` `1.0.0` (a `-suffix` is always cut off, since jpackage 
 
 `android.yml`, `desktop.yml` and `release.yml` never run on their own — a macOS runner is billed
 at 10× and Windows at 2× a Linux minute. Every job has a `timeout-minutes`. Caching is
-`gradle/actions/setup-gradle@v4` alone. [`dependabot.yml`](../../.github/dependabot.yml) opens
+`gradle/actions/setup-gradle@v5` alone. [`dependabot.yml`](../../.github/dependabot.yml) opens
 grouped update PRs, which `ci.yml` validates.
 
 ### Inputs

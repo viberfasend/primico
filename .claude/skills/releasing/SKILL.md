@@ -36,7 +36,7 @@ is six hours, so a test that hangs instead of failing runs out the afternoon and
 nothing. Five minutes is two orders of magnitude above what the suite needs, so it can only
 ever catch a hang.
 
-Caching is `gradle/actions/setup-gradle@v4` and nothing else. It caches `~/.gradle` — the
+Caching is `gradle/actions/setup-gradle@v5` and nothing else. It caches `~/.gradle` — the
 dependency cache, the wrapper and the **build cache**, which `gradle.properties` now switches
 on — so the hand-rolled `actions/cache` step that used to sit beside it restored the same
 directory a second time, with a `transforms-` glob that matched nothing, and has been removed

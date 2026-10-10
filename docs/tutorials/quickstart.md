@@ -9,7 +9,7 @@ By the end of this page you will have Primico's desktop app running from source,
 suite green on your machine, and (if you have an Android phone) a debug build installed on it.
 Nothing here needs an account, a server or a signing key.
 
-"Five minutes" is the time once Gradle is warm. The very first run downloads Gradle 8.14.5, the
+"Five minutes" is the time once Gradle is warm. The very first run downloads Gradle 8.14.6, the
 Kotlin and Compose toolchains and every dependency, which takes longer on a slow connection. Every
 run after that is quick.
 

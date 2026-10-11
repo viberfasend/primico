@@ -21,6 +21,12 @@ so the two cannot disagree. **Primary** is `Ctrl` on Linux and Windows and `Cmd`
 shortcut matches only with exactly its modifiers held, on key-down — except `?`, which matches the
 character typed whatever `Shift` the layout needs for it (`Shift`+`ß` on German QWERTZ).
 
+**None of them fire while one of the shell's modals is open** — the quick-add sheet, the command
+palette, the cheat sheet or a project dialog. A key the modal leaves unconsumed still reaches the
+window, and without the gate `Esc` in quick add navigated the list behind it back and `x` ticked
+off the row selected there. `CadenceDesktopApp` reports whether one is up, and `onKeyEvent`
+returns early while it is.
+
 ### Where the keys are shown
 
 Besides the cheat sheet, every place below reads its keys from the same table through `keysFor`:

@@ -16,6 +16,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -85,6 +86,7 @@ fun CadenceDesktopApp(
     onShortcutsHandled: () -> Unit,
     paletteRequested: Boolean,
     onPaletteHandled: () -> Unit,
+    onModalOpenChange: (Boolean) -> Unit,
     selection: RowSelectionState,
 ) {
     val backupFilePicker = remember { DesktopBackupFilePicker() }
@@ -115,6 +117,10 @@ fun CadenceDesktopApp(
         paletteOpen = true
         onPaletteHandled()
     }
+
+    // The window's shortcuts stand down while any of these is up (`main()`'s `onKeyEvent`).
+    val modalOpen = quickAddOpen || paletteOpen || shortcutsOpen || projectDialog != null
+    SideEffect { onModalOpenChange(modalOpen) }
 
     // The desktop has no pull gesture and no discoverable `Ctrl`+`R`, so the header carries a
     // button; `Ctrl`/`Cmd`+`R` in `main()` runs the same round (ADR 0002, decision 13).

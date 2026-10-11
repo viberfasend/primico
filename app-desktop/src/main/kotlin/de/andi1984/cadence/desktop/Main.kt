@@ -100,6 +100,9 @@ fun main() = application {
     var quickAddRequested by remember { mutableStateOf(false) }
     var shortcutsRequested by remember { mutableStateOf(false) }
     var paletteRequested by remember { mutableStateOf(false) }
+    // Reported back by the shell, which owns the quick-add sheet, the palette, the cheat sheet
+    // and the project dialogs — the window's shortcut handler has no other way to know one is up.
+    var modalOpen by remember { mutableStateOf(false) }
 
     // Restored from the workspace file, which clamps anything unusable — a window that opens
     // off-screen because a second monitor is gone is a window nobody can find.
@@ -138,7 +141,13 @@ fun main() = application {
         title = "Primico",
         // One table decides every shortcut, and the cheat sheet is generated from the same one
         // (`ui/Shortcuts.kt`), so the two cannot drift apart.
-        onKeyEvent = { event ->
+        //
+        // A dialog or sheet is a layer of its own, and a key it leaves unconsumed still bubbles up
+        // to here: with quick add open, `Esc` navigated the list behind it back and `x` ticked off
+        // whichever row was selected there. A modal owns the keyboard while it is up, so the
+        // whole table stands down rather than picking which shortcuts are harmless.
+        onKeyEvent = onKeyEvent@{ event ->
+            if (modalOpen) return@onKeyEvent false
             when (shortcutFor(event)) {
                 ShortcutAction.QuickAdd -> { quickAddRequested = true; true }
                 ShortcutAction.CommandPalette -> { paletteRequested = true; true }
@@ -282,6 +291,7 @@ fun main() = application {
                 onShortcutsHandled = { shortcutsRequested = false },
                 paletteRequested = paletteRequested,
                 onPaletteHandled = { paletteRequested = false },
+                onModalOpenChange = { modalOpen = it },
                 selection = selection,
             )
         }

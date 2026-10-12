@@ -42,7 +42,7 @@ jobs:
       - name: Set up Gradle
         # Caches ~/.gradle itself — dependencies, the wrapper and the build cache — so there is
         # no actions/cache step beside it (see the note in CLAUDE.md's CI section).
-        uses: gradle/actions/setup-gradle@v5
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew

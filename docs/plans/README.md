@@ -17,5 +17,7 @@ order is the `priority:P0`–`P3` labels on the
   [ADR 0003](../adr/0003-desktop-interaction-model.md), now shipped.
 - **[Plan: launcher actions on the desktop](desktop-launcher-actions.md)** — "New task" from
   the dock, the app menu and the jump list, and the single-instance guard they need first.
+- **[Plan: flexible task reminders](task-reminders.md)** — any number of reminders per task, on
+  any day: before the due time, days before the due date, or a fixed date, with repeats and snooze.
 - **[Attachments and the Android share sheet](../attachments-and-share.md)** — the design and
   phases for attachments; phases 0–2 have shipped, and the rest belongs to the interop epic.

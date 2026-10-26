@@ -10,20 +10,20 @@
 # :ui would both have to move to `com.android.kotlin.multiplatform.library` and its different DSL.
 # That is its own change; see the AGP 9 issue. AGP 8.x also pins Gradle to 8.x — 9.7 fails to
 # construct AGP's problem-reporter service.
-agp = "8.13.2"
+agp = "9.4.1"
 kotlin = "2.4.21"
 
 activity-compose = "1.13.0"
 # Held back with core-ktx below: BOM 2026.08.00+ is Compose 1.12, whose AARs require AGP 9.1+
 # and compileSdk 37.
-compose-bom = "2026.06.01"
+compose-bom = "2026.09.00"
 # Compose Multiplatform ships :ui to both Android and the desktop JVM; it tracks Kotlin
 # closely, so bumping `kotlin` above means checking the compatibility table for this one too.
 # 1.12 pulls in androidx Compose 1.12 and so waits for AGP 9, like the BOM.
-compose-multiplatform = "1.11.1"
+compose-multiplatform = "1.12.2"
 # Held back deliberately: core 1.18+ and lifecycle 2.11+ declare "requires Android Gradle plugin
 # 9.1.0 or higher" in their AAR metadata and fail the build on AGP 8. They move when AGP does.
-core-ktx = "1.17.0"
+core-ktx = "1.19.1"
 coroutines = "1.11.0"
 # App widgets: Glance is Google's Compose-based widget toolkit, the only one still under active
 # development — RemoteViews is the legacy API it is built on top of and hides. Android-only, so
@@ -36,11 +36,11 @@ junit = "4.13.2"
 # The HTTP client under sync (ADR 0005) — OkHttp is the one engine that covers Android *and*
 # the desktop JVM. No longer pinned to anything: supabase-kt, which used to dictate this
 # version, is gone. 3.6 brings OkHttp 5.5, which requires compileSdk 37 — held until AGP 9.
-ktor = "3.5.2"
+ktor = "3.6.0"
 lifecycle = "2.10.0"
 # 2.10 requires AGP 9.1+ (it pulls lifecycle 2.11 with it).
-navigation-compose = "2.9.8"
-serialization-json = "1.11.0"
+navigation-compose = "2.10.2"
+serialization-json = "1.12.0"
 sqldelight = "2.4.1"
 test-ext-junit = "1.3.0"
 

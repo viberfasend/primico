@@ -101,13 +101,24 @@ column is what a missing key decodes to. Timestamps are ISO instants such as
 | `spawnedFromId` | string \| null | `null` | The recurring occurrence this row replaces. |
 | `dueDate` | string \| null | `null` | ISO local date, `2026-08-05`. |
 | `dueTime` | string \| null | `null` | ISO local time, `09:30`. |
-| `reminderTime` | string \| null | `null` | ISO local time. |
+| `reminders` | array of [Reminder](#reminder) | `[]` | A real array of tagged objects, not the packed column. Unknown `kind` values are skipped. |
+| `reminderTime` | string \| null | `null` | ISO local time. Legacy: still written (the first same-day reminder's time) for older readers; a v2 file carrying only this reads as `DaysBeforeDue(0, t)`. |
 | `completedAt` | string \| null | `null` | ISO instant; `null` while open. |
 | `createdAt` | string \| null | `null` → epoch | ISO instant. |
 | `sortOrder` | number | `0` | |
 | `recurrence` | [Recurrence](#recurrence) \| null | `null` | |
 | `updatedAt` | string \| null | `null` → epoch | |
 | `deletedAt` | string \| null | `null` | |
+
+### Reminder
+
+A tagged object. `kind` is `beforeDueTime` (with `minutes`), `daysBeforeDue` (with `days` and
+`at`) or `at` (with `dateTime`); `repeat` is `{"everyMinutes": 10, "count": 3}` with `count` null
+for "until done".
+
+```json
+{"kind": "daysBeforeDue", "days": 1, "at": "09:00", "repeat": null}
+```
 
 ### Recurrence
 
@@ -189,6 +200,7 @@ What each value means: [Data model](data-model.md#recurrencerule).
             "spawnedFromId": null,
             "dueDate": "2026-09-24",
             "dueTime": "07:30",
+            "reminders": [],
             "reminderTime": null,
             "completedAt": null,
             "createdAt": "2026-09-03T18:20:00Z",
@@ -218,6 +230,7 @@ What each value means: [Data model](data-model.md#recurrencerule).
             "spawnedFromId": null,
             "dueDate": null,
             "dueTime": null,
+            "reminders": [],
             "reminderTime": null,
             "completedAt": null,
             "createdAt": "2026-09-03T18:21:00Z",

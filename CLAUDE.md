@@ -348,10 +348,12 @@ than reaching for `!!`.
   generated row class after the table, and `Task`/`Project` were already taken by the domain
   model. The tables live in `data/db/Task.sq`, `data/db/Project.sq`, `data/db/Section.sq`,
   `data/db/Tag.sq`, `data/db/Attachment.sq` and
-  `data/db/SyncState.sq`. **The schema is at version 5 and has a migration chain**: shipped
+  `data/db/SyncState.sq`. **The schema is at version 6 and has a migration chain**: shipped
   installs of older versions exist, so a schema change means both editing the `.sq` file *and*
   adding an `N.sqm` beside it (`1.sqm` migrates 1→2 and adds `syncStateRow`; `2.sqm` migrates
-  2→3, rebuilding both tables to drop foreign keys; `3.sqm` adds sections; `4.sqm` adds tags), the
+  2→3, rebuilding both tables to drop foreign keys; `3.sqm` adds sections; `4.sqm` adds tags;
+  `5.sqm` adds the packed `reminders` column and converts every legacy `reminderTime` into a
+  same-day reminder), the
   way `MIGRATION_3_4`
   used to work under Room. **A column added from now on goes last in its `.sq` file**: `ALTER
   TABLE … ADD COLUMN` can only append, every read is a `SELECT *`, and the generated mapper takes
@@ -493,25 +495,32 @@ than reaching for `!!`.
   30 seconds and fires a system-tray balloon for whatever just came due — which only works
   while the app is running, same accepted trade-off ADR 0001 §8 names for a killed Android
   process.
-- **A task can carry several reminders, not one.** `CadenceSettings.reminderLeadMinutes` is a
-  per-device list of "notify me this many minutes before" values (Settings → Notify me before, a
-  chip per preset plus a custom one the user can add) — empty by default, since a fresh install,
-  or an existing task that already has a due time, must not suddenly start notifying for
-  something nobody configured. `domain/reminder/ReminderPlanner.kt` (`:core`, pure, unit-tested on
-  the JVM) is the one answer both shells' schedulers ask "when": for a task with `dueTime` set —
-  quick-add's "18 Uhr" already fills it in — it returns one instant per configured lead, counted
-  back from that time; for a task with `reminderTime` set (the older, manually-picked, exact-time
-  reminder, independent of `dueTime`) it returns one more instant, reported with lead `0`. It
-  deliberately does **not** filter by "now": AlarmManager cannot fire retroactively, so Android
-  discards a past instant and cancels whatever alarm was there; the desktop has no such limit and
-  fires on the very next poll after a reminder that elapsed while the app was closed, exactly as
-  it always did. Each platform scheduler therefore needs one alarm identity per **(task id, lead
-  minutes)** pair rather than per task — Android's `ReminderRequestCodes` keys a `PendingIntent` on
-  the pair (lead `0` keeps the bare task id it always used, so upgrading changes nothing about an
-  alarm that predates lead times) and separately persists which leads are currently armed for a
-  task, so a lead value removed from Settings gets its outstanding alarm cancelled on the next
-  sync rather than firing once more; the desktop's `DesktopReminderScheduler` keys its three maps
-  the same way with a `ReminderKey(taskId, leadMinutes)`.
+- **A task can carry any number of reminders, not one.** `Task.reminders` is a list of
+  `Reminder`s — each a trigger (`BeforeDueTime` minutes before the due moment, `DaysBeforeDue`
+  days before the due date at a wall-clock time, `At` a fixed date-time that also works on an
+  undated task) with an optional repeat — packed into one `taskRow.reminders` column and synced as
+  one jsonb array, not as rows of their own (ADR 0006; the legacy single `reminderTime` migrated
+  into `DaysBeforeDue(0, t)` by `5.sqm`). On top of the task's own list, the per-device
+  `CadenceSettings.reminderLeadMinutes` adds "notify me this many minutes before `dueTime`"
+  values (Settings → Notify me before, a chip per preset plus a custom one the user can add) —
+  empty by default, since a fresh install, or an existing task that already has a due time, must
+  not suddenly start notifying for something nobody configured.
+  `domain/reminder/ReminderPlanner.kt` (`:core`, pure, unit-tested on the JVM) is the one answer
+  both shells' schedulers ask "when": one instant per configured lead (`lead:N`), counted back
+  from the due time — quick-add's "18 Uhr" already fills it in — plus one per reminder entry,
+  expanded over its repeat up to `MAX_NAG` instants. It deliberately does **not** filter by "now":
+  AlarmManager cannot fire retroactively, so Android discards a past instant and cancels whatever
+  alarm was there; the desktop has no such limit and fires on the very next poll after a reminder
+  that elapsed while the app was closed, exactly as it always did. Each platform scheduler
+  therefore needs one alarm identity per **(task id, slot)** pair rather than per task, where the
+  slot is `lead:N` for a device lead or the reminder's packed encoding plus the repeat index
+  (`d1@09:00#0`) — so editing a reminder cancels the old key and arms the new one with no stored
+  ids. Android's `ReminderRequestCodes` keys a `PendingIntent` on the pair (the legacy slot `0`
+  keeps the bare task id it always used) and separately persists which slots are currently armed
+  for a task (`active_slots:`; the pre-slot `active_leads:` entries are still read as legacy slots
+  and cancelled once on upgrade), so a lead value removed from Settings gets its outstanding alarm
+  cancelled on the next sync rather than firing once more; the desktop's
+  `DesktopReminderScheduler` keys its maps the same way with a `ReminderKey(taskId, slot)`.
 - **A bare time in quick-add defaults the due date to today.** "Kochen 18 Uhr" has no date word of
   its own, so `QuickAddParser.parse`'s `resolvedDue` falls back to `today` whenever `dueTime`
   parsed to something and neither an explicit date nor a recurrence rule claimed one — the same
@@ -755,9 +764,9 @@ than reaching for `!!`.
   for it at the same minute. The flag travels through the port as it is —
   `ReminderScheduler.sync(tasks, leadMinutes, enabled)` — and `ReminderReconciler` treats `false`
   as an *empty plan*, so every alarm the device had armed is cancelled. It used to be encoded by
-  stripping `dueTime`/`reminderTime` off every task before the call, which the port could not
+  stripping the times off every task before the call, which the port could not
   tell from "no reminder set"; nothing strips anything now. The reconciler diffs against the
-  *whole* armed set on both shells (Android reads every `active_leads:` entry, not one task's),
+  *whole* armed set on both shells (Android reads every `active_slots:` entry, not one task's),
   so a task that vanished without a `cancel` call — one a pull tombstoned — loses its alarms on
   the next emission too. The boot receiver passes the same flag, so a phone with reminders off
   no longer re-arms them on reboot.

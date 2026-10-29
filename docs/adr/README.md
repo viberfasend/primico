@@ -17,6 +17,7 @@ The code tells you *what*; an ADR tells you *why not the obvious alternative*.
 | [0003](0003-desktop-interaction-model.md) | The desktop is pointer- and keyboard-first: sidebar, two panes, drag and drop, command palette | Accepted | 2026-08-21 |
 | [0004](0004-tags.md) | A tag is identity only; which tasks wear it is a packed column on the task | Accepted | 2026-08-22 |
 | [0005](0005-neon-sync.md) | The sync backend moves from Supabase to Neon (Data API + Neon Auth), realtime becomes a poll | Accepted | 2026-08-25 |
+| [0006](0006-task-reminders.md) | A task carries a list of reminders with several trigger kinds, packed into one column on the task | Accepted | 2026-10-25 |
 
 ```mermaid
 flowchart LR
@@ -26,6 +27,7 @@ flowchart LR
   A2 --> A5["0005<br/>Neon backend"]
   A1 -. "decision 6 superseded" .-> A2
   A2 -. "decisions 6, 12 superseded" .-> A5
+  A2 --> A6["0006<br/>flexible reminders"]
 ```
 
 ## Numbers that are already spoken for

@@ -1,0 +1,18 @@
+-- 5 → 6: flexible task reminders. One new packed column on `taskRow`, nothing rebuilt.
+--
+-- Same shape as `4.sqm`: the statement is an `ALTER TABLE … ADD COLUMN`, so SQLite can only
+-- append, which is why `taskRow.reminders` is declared last in `Task.sq` as well. Every read is
+-- `SELECT *` and the generated mapper takes its arguments positionally, so a fresh database and
+-- a migrated one have to agree on column order exactly.
+--
+-- `reminderTime` stays in the table but is no longer read: SQLite 3.19 (minSdk 26) has no
+-- `DROP COLUMN`. The UPDATE below converts every legacy reminder into the equivalent new one —
+-- a time on the due day is `DaysBeforeDue(0, t)`, packed as `d0@HH:MM` — so an existing reminder
+-- keeps firing exactly where it always did. `reminderTime` is stored as second of day, hence the
+-- printf; time pickers only ever produce whole minutes.
+
+ALTER TABLE taskRow ADD COLUMN reminders TEXT NOT NULL DEFAULT '';
+
+UPDATE taskRow
+SET reminders = 'v1;d0@' || printf('%02d:%02d', reminderTime / 3600, (reminderTime % 3600) / 60)
+WHERE reminderTime IS NOT NULL;

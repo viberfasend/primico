@@ -29,10 +29,10 @@ value class BackupTarget(val value: String)
 /** Brings the platform's scheduled reminders in line with the tasks that still exist. */
 interface ReminderScheduler {
     /**
-     * Every task in [tasks] gets one alarm per candidate lead — every positive entry in
-     * [leadMinutes], that many minutes before [Task.dueTime], plus the moment [Task.reminderTime]
-     * itself names — each either (re)scheduled or cancelled, so removing a reminder or changing
-     * [leadMinutes] in Settings takes effect on the next sync.
+     * Every task in [tasks] gets one alarm per planned slot — every positive entry in
+     * [leadMinutes], that many minutes before [Task.dueTime] (`lead:N`), plus one per entry of the
+     * task's own [Task.reminders] list — each either (re)scheduled or cancelled, so removing a
+     * reminder or changing [leadMinutes] in Settings takes effect on the next sync.
      *
      * [enabled] is whether this device fires reminders at all (`CadenceSettings.remindersEnabled`,
      * per device, since a task synced to two devices would otherwise go off on both). `false` is

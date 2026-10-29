@@ -545,6 +545,7 @@ internal fun TaskQueries.upsertRow(task: Task) {
         recurrence = row.recurrence,
         updatedAt = row.updatedAt,
         deletedAt = row.deletedAt,
+        reminders = row.reminders,
         id = row.id,
     )
     insertIfAbsent(row)
@@ -579,6 +580,7 @@ internal fun TaskQueries.mergeRow(task: Task, revivedAt: Instant? = null) {
             sortOrder = row.sortOrder,
             recurrence = row.recurrence,
             revivedAt = revivedAt.toEpochMilli(),
+            reminders = row.reminders,
             id = row.id,
         )
     }
@@ -600,6 +602,7 @@ internal fun TaskQueries.mergeRow(task: Task, revivedAt: Instant? = null) {
         recurrence = row.recurrence,
         updatedAt = row.updatedAt,
         deletedAt = row.deletedAt,
+        reminders = row.reminders,
         id = row.id,
     )
     insertIfAbsent(row)
@@ -742,7 +745,13 @@ private fun Task.toRow() = TaskRow(
     spawnedFromId = spawnedFromId,
     dueDate = dueDate?.toEpochDay(),
     dueTime = dueTime?.toSecondOfDay()?.toLong(),
-    reminderTime = reminderTime?.toSecondOfDay()?.toLong(),
+    // The column is no longer read (`5.sqm` converted it into `reminders`), but it is still
+    // written — as the time of the first same-day reminder, the same value the wire's
+    // `reminder_time` carries — so the raw row never disagrees with what the app fires.
+    reminderTime = reminders.firstNotNullOfOrNull { r ->
+        (r.trigger as? de.andi1984.cadence.domain.reminder.ReminderTrigger.DaysBeforeDue)
+            ?.takeIf { it.days == 0 }?.at?.toSecondOfDay()?.toLong()
+    },
     completedAt = completedAt?.toEpochMilli(),
     createdAt = createdAt.toEpochMilli(),
     sortOrder = sortOrder.toLong(),
@@ -751,6 +760,7 @@ private fun Task.toRow() = TaskRow(
     deletedAt = deletedAt?.toEpochMilli(),
     sectionId = sectionId,
     tagIds = TagIdsCodec.encode(tagIds),
+    reminders = ReminderCodec.encode(reminders),
 )
 
 private fun Project.toRow() = ProjectRow(
@@ -815,10 +825,11 @@ internal fun toTask(
     recurrence: String?,
     updatedAt: Long,
     deletedAt: Long?,
-    // Last, because `SELECT *` hands the mapper the table's own column order and `3.sqm`/`4.sqm`
-    // could only append these — see the note on `taskRow.sectionId`.
+    // Last, because `SELECT *` hands the mapper the table's own column order and `3.sqm`/`4.sqm`/
+    // `5.sqm` could only append these — see the note on `taskRow.sectionId`.
     sectionId: String?,
     tagIds: String?,
+    reminders: String,
 ) = Task(
     id = id,
     title = title,
@@ -831,7 +842,9 @@ internal fun toTask(
     spawnedFromId = spawnedFromId,
     dueDate = dueDate?.let { LocalDate.ofEpochDay(it) },
     dueTime = dueTime?.let { LocalTime.ofSecondOfDay(it) },
-    reminderTime = reminderTime?.let { LocalTime.ofSecondOfDay(it) },
+    // `reminderTime` is still in the table (SQLite 3.19 on minSdk 26 has no DROP COLUMN) but is no
+    // longer read: `5.sqm` converted it into `reminders`, which is the only column mapped here.
+    reminders = ReminderCodec.decode(reminders),
     completedAt = completedAt?.let { Instant.ofEpochMilli(it) },
     createdAt = Instant.ofEpochMilli(createdAt),
     sortOrder = sortOrder.toInt(),

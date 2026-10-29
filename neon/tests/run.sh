@@ -177,6 +177,46 @@ expect_user "another account cannot collect this one's tombstones" \
      where id = '00000000-0000-0000-0000-000000000003'"
 expect_error "signed out, nothing is readable" \
     "permission denied" "set role anonymous; select count(*) from public.tasks"
+
+# ── 0003_task_reminders: the reminders column ──────────────────────────────────
+#
+# The rollout contract: new clients always send `reminders` (encodeDefaults), so the column has to
+# exist before they ship; old clients omit it, and an upsert that omits a column leaves the stored
+# value alone — that is the whole backward-compatibility story, asserted below.
+
+expect "the reminders column exists as a not-null jsonb defaulting to the empty array" \
+    "jsonb|NO|'[]'::jsonb" \
+    "select data_type, is_nullable, column_default
+     from information_schema.columns
+     where table_schema = 'public' and table_name = 'tasks' and column_name = 'reminders'"
+expect "the array check is attached to the column" "t" \
+    "select count(*) > 0 from pg_constraint c
+     join pg_class t on t.oid = c.conrelid
+     where t.relname = 'tasks' and c.contype = 'c' and pg_get_constraintdef(c.oid) like '%jsonb_typeof(reminders)%'"
+
+expect_user "a push carrying a reminders array lands it" \
+    "INSERT 0 1" "$USER_A" \
+    "insert into public.tasks (id, title, priority, created_at, sort_order, updated_at, reminders)
+     values ('00000000-0000-0000-0000-000000000010', 'reminded', 1, now(), 0, now(),
+             '[{\"kind\":\"daysBeforeDue\",\"days\":1,\"at\":\"09:00\",\"repeat\":null}]')"
+expect "…stored as the array sent" \
+    "daysBeforeDue" \
+    "select reminders -> 0 ->> 'kind' from public.tasks
+     where id = '00000000-0000-0000-0000-000000000010'"
+# As the authenticated role, so user_id fills itself and the array check is what refuses the row.
+expect_error "a non-array reminders value is refused by the check" \
+    "violates check constraint" \
+    "set role authenticated; set cadence.test_user_id to '$USER_A'; insert into public.tasks (id, title, priority, created_at, sort_order, updated_at, reminders)
+     values ('00000000-0000-0000-0000-000000000011', 'broken', 1, now(), 0, now(), '{\"kind\":\"at\"}')"
+expect_user "an old-client push that omits reminders leaves the column untouched" \
+    "UPDATE 1" "$USER_A" \
+    "update public.tasks set title = 'reminded again', updated_at = now()
+     where id = '00000000-0000-0000-0000-000000000010'"
+expect "…the array is still there" \
+    "daysBeforeDue" \
+    "select reminders -> 0 ->> 'kind' from public.tasks
+     where id = '00000000-0000-0000-0000-000000000010'"
+psql_as postgres -c "delete from public.tasks where id = '00000000-0000-0000-0000-000000000010'" >/dev/null
 expect_error "the bookkeeping table is not in the Data API" \
     "permission denied" "set role authenticated; select count(*) from public.schema_migrations"
 expect_error "…and cannot be written either" \

@@ -1,5 +1,6 @@
 package de.andi1984.cadence.domain.model
 
+import de.andi1984.cadence.domain.reminder.Reminder
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -58,8 +59,17 @@ data class Task(
     val spawnedFromId: String? = null,
     val dueDate: LocalDate? = null,
     val dueTime: LocalTime? = null,
-    /** Time of day to remind, on the due day. */
-    val reminderTime: LocalTime? = null,
+    /**
+     * The reminders on this task — any number of them, each with its own trigger (minutes before
+     * the due time, days before the due date at a set time, or a fixed date), optionally
+     * repeating. Packed into one column on the task row, not rows of their own: a reminder
+     * belongs to exactly one task and travels with it through recurrence, backup, tombstones and
+     * last-writer-wins — the same reasoning as [tagIds] (ADR 0006).
+     *
+     * The legacy single `reminderTime` (a time on the due day) migrated here as
+     * `DaysBeforeDue(0, time)` in schema 6.
+     */
+    val reminders: List<Reminder> = emptyList(),
     val completedAt: Instant? = null,
     val createdAt: Instant = Instant.EPOCH,
     val sortOrder: Int = 0,

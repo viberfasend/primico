@@ -22,6 +22,7 @@ import de.andi1984.cadence.domain.model.Task
 import de.andi1984.cadence.domain.model.projectPath
 import de.andi1984.cadence.domain.model.withoutSupersededOccurrences
 import de.andi1984.cadence.domain.parse.ParsedQuickAdd
+import de.andi1984.cadence.domain.reminder.Reminder
 import de.andi1984.cadence.ui.dnd.DropIntent
 import de.andi1984.cadence.ui.platform.BackupGateway
 import de.andi1984.cadence.ui.platform.AttachmentOpener
@@ -597,7 +598,17 @@ class CadenceViewModel(
 
     fun setDueTime(task: Task, dueTime: LocalTime?) = saveTask(task.copy(dueTime = dueTime))
 
-    fun setReminder(task: Task, reminder: LocalTime?) = saveTask(task.copy(reminderTime = reminder))
+    /** Adds a reminder to the task, collapsing an identical one already on it (the dedupe rule). */
+    fun addReminder(task: Task, reminder: Reminder) =
+        saveTask(task.copy(reminders = (task.reminders + reminder).distinct()))
+
+    /** Replaces [previous] with [reminder] in the task's list — what editing a reminder row does. */
+    fun updateReminder(task: Task, previous: Reminder, reminder: Reminder) = saveTask(
+        task.copy(reminders = task.reminders.map { if (it == previous) reminder else it }),
+    )
+
+    fun removeReminder(task: Task, reminder: Reminder) =
+        saveTask(task.copy(reminders = task.reminders - reminder))
 
     fun setRecurrence(task: Task, rule: RecurrenceRule?) = saveTask(task.copy(recurrence = rule))
 

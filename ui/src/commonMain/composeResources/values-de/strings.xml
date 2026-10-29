@@ -286,10 +286,52 @@
     <string name="task_no_due_time">Keine Uhrzeit</string>
     <string name="task_tap_to_add_time">Zum Hinzufügen tippen – Erinnerungen zählen davon zurück</string>
     <string name="task_tap_to_change_time">Zum Ändern oder Entfernen tippen</string>
-    <string name="task_remind_at">Erinnerung um %1$s</string>
-    <string name="task_no_reminder">Keine Erinnerung</string>
-    <string name="task_on_the_due_day">Am Fälligkeitstag</string>
-    <string name="task_tap_to_add_reminder">Zum Hinzufügen tippen</string>
+    <string name="task_reminders">Erinnerungen</string>
+    <string name="task_no_reminders">Noch keine Erinnerungen</string>
+    <string name="task_add_reminder">Erinnerung hinzufügen</string>
+    <plurals name="task_reminders_count">
+        <item quantity="one">%1$d Erinnerung</item>
+        <item quantity="other">%1$d Erinnerungen</item>
+    </plurals>
+    <string name="reminder_editor_title">Erinnerung</string>
+    <string name="reminder_editor_kind">Art</string>
+    <string name="reminder_kind_before_due_time">Vor der Fälligkeitszeit</string>
+    <string name="reminder_kind_days_before_due">Tage vor dem Fälligkeitsdatum</string>
+    <string name="reminder_kind_at">An einem Datum</string>
+    <string name="reminder_preset_same_day">Am Fälligkeitstag</string>
+    <string name="reminder_preset_1_day">1 Tag vorher</string>
+    <string name="reminder_preset_2_days">2 Tage vorher</string>
+    <string name="reminder_preset_1_week">1 Woche vorher</string>
+    <string name="reminder_preset_minutes">%1$d Min. vorher</string>
+    <string name="reminder_preset_time_at">um %1$s</string>
+    <string name="reminder_editor_date">Datum</string>
+    <string name="reminder_editor_time">Uhrzeit</string>
+    <string name="reminder_on_due_day_at">Am Fälligkeitstag um %1$s</string>
+    <plurals name="reminder_days_before_at">
+        <item quantity="one">1 Tag vorher um %2$s</item>
+        <item quantity="other">%1$d Tage vorher um %2$s</item>
+    </plurals>
+    <plurals name="reminder_minutes_before">
+        <item quantity="one">%1$d Minute vor der Fälligkeit</item>
+        <item quantity="other">%1$d Minuten vor der Fälligkeit</item>
+    </plurals>
+    <string name="reminder_at_date_time">Am %1$s um %2$s</string>
+    <string name="reminder_repeat_times">%1$s · alle %2$d Min., %3$d-mal</string>
+    <string name="reminder_repeat_until_done">%1$s · alle %2$d Min., bis erledigt</string>
+    <string name="reminder_content_text">Heute fällig</string>
+    <string name="reminder_at_content_text">Erinnerung</string>
+    <plurals name="reminder_lead_content_text">
+        <item quantity="one">In %1$d Minute</item>
+        <item quantity="other">In %1$d Minuten</item>
+    </plurals>
+    <plurals name="reminder_due_in_days">
+        <item quantity="one">Morgen fällig</item>
+        <item quantity="other">In %1$d Tagen fällig</item>
+    </plurals>
+    <plurals name="reminder_overdue">
+        <item quantity="one">1 Tag überfällig</item>
+        <item quantity="other">%1$d Tage überfällig</item>
+    </plurals>
     <string name="task_does_not_repeat">Wiederholt sich nicht</string>
     <string name="task_next_occurrence">Nächster Termin: %1$s</string>
     <string name="task_recurrence_supporting">Kalenderregeln oder „n Tage nach Erledigung“</string>
@@ -299,7 +341,6 @@
     <string name="task_mark_done">Als erledigt markieren</string>
     <string name="task_mark_not_done">Als offen markieren</string>
     <string name="task_due_at_picker">Fällig um</string>
-    <string name="task_remind_at_picker">Erinnerung um</string>
 
     <!-- ── Unteraufgaben ───────────────────────────────────────────────────────────── -->
     <string name="subtasks_title">Unteraufgaben</string>

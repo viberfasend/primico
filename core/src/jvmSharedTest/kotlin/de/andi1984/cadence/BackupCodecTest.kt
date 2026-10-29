@@ -13,6 +13,9 @@ import de.andi1984.cadence.domain.model.RecurrenceUnit
 import de.andi1984.cadence.domain.model.Section
 import de.andi1984.cadence.domain.model.Tag
 import de.andi1984.cadence.domain.model.Task
+import de.andi1984.cadence.domain.reminder.Reminder
+import de.andi1984.cadence.domain.reminder.ReminderRepeat
+import de.andi1984.cadence.domain.reminder.ReminderTrigger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -20,6 +23,7 @@ import org.junit.Test
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 
 class BackupCodecTest {
@@ -36,7 +40,7 @@ class BackupCodecTest {
         projectId = "7",
         dueDate = LocalDate.of(2026, 8, 6),
         dueTime = LocalTime.of(9, 30),
-        reminderTime = LocalTime.of(8, 0),
+        reminders = listOf(Reminder(ReminderTrigger.DaysBeforeDue(0, LocalTime.of(8, 0)))),
         completedAt = Instant.parse("2026-08-04T07:12:00Z"),
         createdAt = Instant.parse("2026-08-01T05:00:00Z"),
         sortOrder = 1,
@@ -444,5 +448,84 @@ class BackupCodecTest {
         )
 
         assertEquals(listOf("g1"), restored.tasks.single().tagIds)
+    }
+
+    // ── Reminders ─────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `reminders of every kind survive a round trip`() {
+        val withReminders = task.copy(
+            reminders = listOf(
+                Reminder(ReminderTrigger.DaysBeforeDue(1, LocalTime.of(9, 0))),
+                Reminder(ReminderTrigger.BeforeDueTime(30)),
+                Reminder(
+                    ReminderTrigger.At(LocalDateTime.of(2026, 10, 26, 9, 0)),
+                    ReminderRepeat(10, 3),
+                ),
+            ),
+        )
+
+        val restored = roundTrip(BackupSnapshot(tasks = listOf(withReminders)))
+
+        assertEquals(withReminders.reminders, restored.tasks.single().reminders)
+    }
+
+    @Test
+    fun `reminders are written as a JSON array of tagged objects, and reminderTime for older readers`() {
+        val json = BackupCodec.encode(BackupSnapshot(tasks = listOf(task)), exportedAt)
+
+        assertTrue(json, json.contains("\"reminders\": ["))
+        assertTrue(json, json.contains("\"kind\": \"daysBeforeDue\""))
+        // The legacy field is still written, carrying the first same-day reminder's time.
+        assertTrue(json, json.contains("\"reminderTime\": \"08:00\""))
+    }
+
+    @Test
+    fun `a v2 file with only the legacy reminderTime maps it to a same-day reminder`() {
+        val legacyJson = """
+            {
+              "format": "cadence.backup",
+              "version": 2,
+              "tasks": [{
+                "id": "3", "title": "Water the plants", "priority": 1,
+                "dueDate": "2026-08-06", "dueTime": "09:30", "reminderTime": "08:00",
+                "createdAt": "2026-08-01T05:00:00Z", "sortOrder": 1, "updatedAt": "2026-08-01T05:00:00Z"
+              }]
+            }
+        """.trimIndent()
+
+        val result = BackupCodec.decode(legacyJson)
+
+        assertTrue(result is BackupReadResult.Ok)
+        assertEquals(
+            listOf(Reminder(ReminderTrigger.DaysBeforeDue(0, LocalTime.of(8, 0)))),
+            (result as BackupReadResult.Ok).snapshot.tasks.single().reminders,
+        )
+    }
+
+    @Test
+    fun `an unknown reminder kind in a file is skipped, the rest survive`() {
+        val json = """
+            {
+              "format": "cadence.backup",
+              "version": 2,
+              "tasks": [{
+                "id": "3", "title": "Water the plants", "priority": 1,
+                "createdAt": "2026-08-01T05:00:00Z", "updatedAt": "2026-08-01T05:00:00Z",
+                "reminders": [
+                  {"kind": "location", "lat": 52.5, "lng": 13.4},
+                  {"kind": "daysBeforeDue", "days": 2, "at": "09:00", "repeat": null}
+                ]
+              }]
+            }
+        """.trimIndent()
+
+        val result = BackupCodec.decode(json)
+
+        assertTrue(result is BackupReadResult.Ok)
+        assertEquals(
+            listOf(Reminder(ReminderTrigger.DaysBeforeDue(2, LocalTime.of(9, 0)))),
+            (result as BackupReadResult.Ok).snapshot.tasks.single().reminders,
+        )
     }
 }

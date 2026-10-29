@@ -10,6 +10,8 @@ import de.andi1984.cadence.desktop.data.DesktopSettingsStore
 import de.andi1984.cadence.desktop.data.createReminderTrayIcon
 import de.andi1984.cadence.desktop.platform.PlatformDirs
 import de.andi1984.cadence.ui.ViewModelAdapters
+import de.andi1984.cadence.ui.format.notificationLabel
+import kotlinx.coroutines.runBlocking
 import java.awt.TrayIcon
 
 /** Hand-rolled dependency graph, same idea as `:app-android`'s `AppContainer`: the app is small
@@ -64,6 +66,10 @@ class AppContainer {
     val reminderScheduler = DesktopReminderScheduler(
         scope = applicationScope,
         trayIcon = trayIcon,
+        // The balloon's content line, worded from the trigger exactly as the Android notification
+        // words it. The poll fires from a coroutine, not composition, so it reads the resources
+        // through the suspend accessors rather than `stringResource`.
+        labelFor = { title, source -> runBlocking { notificationLabel(title, source) } },
     )
 
     /** Handed to [de.andi1984.cadence.ui.cadenceViewModel] by `main()` so the seven-argument

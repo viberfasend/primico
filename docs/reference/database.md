@@ -1,6 +1,6 @@
 ---
 title: Database schema
-description: The local SQLite schema at version 5 — every table and column in declared order, the migration chain, the storage encodings, the rules for changing it, and where the file lives.
+description: The local SQLite schema at version 6 — every table and column in declared order, the migration chain, the storage encodings, the rules for changing it, and where the file lives.
 sidebar:
   order: 3
 ---
@@ -13,7 +13,7 @@ between a column and a domain value lives in
 [`SqlDelightStores.kt`](../../core/src/jvmShared/kotlin/de/andi1984/cadence/data/db/SqlDelightStores.kt)
 (`Task.toRow()` / `toTask` and the same pair per entity), and nowhere else.
 
-**Schema version: 5.** Tables are named `…Row` so the generated row classes do not collide with
+**Schema version: 6.** Tables are named `…Row` so the generated row classes do not collide with
 the domain types (`TaskRow` vs `Task`).
 
 ## Tables
@@ -37,7 +37,7 @@ column for column.
 | 7 | `spawnedFromId` | `TEXT` | yes | the occurrence this row replaces. No `REFERENCES` |
 | 8 | `dueDate` | `INTEGER` | yes | epoch day |
 | 9 | `dueTime` | `INTEGER` | yes | second of day |
-| 10 | `reminderTime` | `INTEGER` | yes | second of day |
+| 10 | `reminderTime` | `INTEGER` | yes | second of day; still written (first same-day reminder's time), no longer read — `5.sqm` converted it into `reminders` |
 | 11 | `completedAt` | `INTEGER` | yes | epoch millis; `NULL` while open |
 | 12 | `createdAt` | `INTEGER` | no | epoch millis |
 | 13 | `sortOrder` | `INTEGER` | no | |
@@ -46,6 +46,7 @@ column for column.
 | 16 | `deletedAt` | `INTEGER` | yes | epoch millis; tombstone |
 | 17 | `sectionId` | `TEXT` | yes | section id; added by `3.sqm` |
 | 18 | `tagIds` | `TEXT` | yes | comma-separated tag ids by `TagIdsCodec`, `NULL` for none; added by `4.sqm` |
+| 19 | `reminders` | `TEXT` | no, default `''` | packed by `ReminderCodec`, `''` for none; added by `5.sqm` |
 
 Indexes: `idx_task_project` (`projectId`), `idx_task_section` (`sectionId`), `idx_task_parent`
 (`parentId`), `idx_task_spawned_from` (`spawnedFromId`), `idx_task_due` (`dueDate`),
@@ -149,6 +150,7 @@ every delete). An unknown `kind` reads back as `FILE` when `sha256` is set, else
 | `Priority` | `level` (1–4); anything else reads as `P3` | `SqlDelightStores.kt` |
 | `RecurrenceRule` | `v1;key=value;…` text | [`RecurrenceCodec`](../../core/src/jvmShared/kotlin/de/andi1984/cadence/data/db/RecurrenceCodec.kt) |
 | `List<String>` tag ids | `id1,id2,…`, or `NULL` when empty | [`TagIdsCodec`](../../core/src/jvmShared/kotlin/de/andi1984/cadence/data/db/TagIdsCodec.kt) |
+| `List<Reminder>` | `v1;d1@09:00|m30`, entries `|` -separated, `''` when empty | [`ReminderCodec`](../../core/src/jvmShared/kotlin/de/andi1984/cadence/data/db/ReminderCodec.kt) |
 
 **`RecurrenceCodec` format.** Segments joined by `;`. The first is always `v1`; then `mode`,
 `interval`, `unit` and `monthly` always; `dows`, `dom`, `nthWeek`, `nthDow` only when set.
@@ -171,6 +173,13 @@ stored `keepMissed` segment from older installs is now skipped.
 **`TagIdsCodec` format.** Blank ids are dropped and duplicates removed on the way in and out;
 order is preserved.
 
+**`ReminderCodec` format.** `v1;` then the entries joined by `|`. An entry is the trigger — `m30`
+(minutes before the due time), `d1@09:00` (days before the due date at a wall-clock time),
+`t2026-10-26T09:00` (a fixed local date-time) — plus an optional repeat suffix `~r10x3` (`~r10`
+when the count is null, "until done"). Anything unrecognised decodes to no reminders; unknown
+trigger kinds are skipped entry by entry. The same encoding, plus a `#index` suffix, is the alarm
+slot `ReminderPlanner` derives.
+
 ## Migration chain
 
 A schema change edits the `.sq` file **and** adds the next `N.sqm`, which migrates from version
@@ -183,6 +192,7 @@ A schema change edits the `.sq` file **and** adds the next `N.sqm`, which migrat
 | [`2.sqm`](../../core/src/commonMain/sqldelight/de/andi1984/cadence/data/db/2.sqm) | 2 → 3 | Rebuilds `taskRow` and `projectRow` without their foreign keys (copy to `…New`, drop, rename) and recreates every index, adding `idx_task_updated` and `idx_project_updated`. |
 | [`3.sqm`](../../core/src/commonMain/sqldelight/de/andi1984/cadence/data/db/3.sqm) | 3 → 4 | Sections: `ALTER TABLE taskRow ADD COLUMN sectionId`, `idx_task_section`, `CREATE TABLE sectionRow` and its three indexes, `ALTER TABLE syncStateRow ADD COLUMN sectionCursor`. |
 | [`4.sqm`](../../core/src/commonMain/sqldelight/de/andi1984/cadence/data/db/4.sqm) | 4 → 5 | Tags: `ALTER TABLE taskRow ADD COLUMN tagIds`, `CREATE TABLE tagRow` and its two indexes, `ALTER TABLE syncStateRow ADD COLUMN tagCursor`. No join table. |
+| [`5.sqm`](../../core/src/commonMain/sqldelight/de/andi1984/cadence/data/db/5.sqm) | 5 → 6 | Reminders: `ALTER TABLE taskRow ADD COLUMN reminders TEXT NOT NULL DEFAULT ''`, then every legacy `reminderTime` converted to `v1;d0@HH:MM` (`DaysBeforeDue(0, t)`). The column stays but is no longer read. |
 
 How each platform runs the chain:
 
@@ -195,7 +205,7 @@ How each platform runs the chain:
 
 - [ ] **Append new columns last.** `ALTER TABLE … ADD COLUMN` can only append and every read is
       `SELECT *`, so a column declared anywhere else in the `.sq` file would give a fresh database a
-      different column order than a migrated one. `sectionId`, `tagIds`, `sectionCursor` and
+      different column order than a migrated one. `sectionId`, `tagIds`, `reminders`, `sectionCursor` and
       `tagCursor` all sit last for this reason.
 - [ ] **Convert in exactly two places.** A new column is converted in `toRow()` and in the read
       mapper in `SqlDelightStores.kt`, never in a query wrapper's argument list.

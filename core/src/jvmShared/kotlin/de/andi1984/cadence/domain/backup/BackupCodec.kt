@@ -11,11 +11,15 @@ import de.andi1984.cadence.domain.model.Section
 import de.andi1984.cadence.domain.model.Tag
 import de.andi1984.cadence.domain.model.Task
 import de.andi1984.cadence.domain.parseOrNull
+import de.andi1984.cadence.domain.reminder.Reminder
+import de.andi1984.cadence.domain.reminder.ReminderRepeat
+import de.andi1984.cadence.domain.reminder.ReminderTrigger
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 
 /** Everything the app owns, in one value: what an export writes and an import restores. */
@@ -273,6 +277,16 @@ internal data class BackupTask(
     val dueDate: String? = null,
     /** ISO local time, e.g. `09:30`. */
     val dueTime: String? = null,
+    /**
+     * The task's reminders as tagged objects — a real array, not the packed column. Added without
+     * a [BackupCodec.VERSION] bump: an older reader ignores the key.
+     */
+    val reminders: List<BackupReminder> = emptyList(),
+    /**
+     * The legacy single reminder time, still written so an older install reading this file fires
+     * something: it is the `at` of the first `DaysBeforeDue(0)`. Still read on the way in — a v2
+     * file that carries only this maps to `DaysBeforeDue(0)`.
+     */
     val reminderTime: String? = null,
     /** ISO instant, e.g. `2026-08-05T07:12:00Z`. */
     val completedAt: String? = null,
@@ -283,6 +297,30 @@ internal data class BackupTask(
     val updatedAt: String? = null,
     /** ISO instant, e.g. `2026-08-05T07:12:00Z`, or null for active records. */
     val deletedAt: String? = null,
+)
+
+/**
+ * One reminder in the backup file, as a tagged object:
+ * `{"kind":"daysBeforeDue","days":1,"at":"09:00","repeat":null}`. Unknown kinds are skipped on
+ * read, so a newer file's reminder kind does not break an older install.
+ */
+@Serializable
+internal data class BackupReminder(
+    val kind: String,
+    val minutes: Int? = null,
+    val days: Int? = null,
+    /** ISO local time, e.g. `09:00`. */
+    val at: String? = null,
+    /** ISO local date-time, e.g. `2026-10-26T09:00`. */
+    val dateTime: String? = null,
+    val repeat: BackupRepeat? = null,
+)
+
+@Serializable
+internal data class BackupRepeat(
+    val everyMinutes: Int,
+    /** Null means "until the task is done or the reminder is dismissed". */
+    val count: Int? = null,
 )
 
 @Serializable
@@ -366,7 +404,12 @@ private fun Task.toBackup() = BackupTask(
     spawnedFromId = spawnedFromId,
     dueDate = dueDate?.toString(),
     dueTime = dueTime?.toString(),
-    reminderTime = reminderTime?.toString(),
+    reminders = reminders.map { it.toBackup() },
+    // Still written for older readers: the time of the first same-day reminder, which is what the
+    // legacy single `reminderTime` meant.
+    reminderTime = reminders.firstNotNullOfOrNull { r ->
+        (r.trigger as? ReminderTrigger.DaysBeforeDue)?.takeIf { it.days == 0 }?.at?.toString()
+    },
     completedAt = completedAt?.toString(),
     createdAt = createdAt.toString(),
     sortOrder = sortOrder,
@@ -389,7 +432,10 @@ private fun BackupTask.toDomain() = Task(
     spawnedFromId = spawnedFromId?.takeIf { it.isNotBlank() },
     dueDate = dueDate.parseOrNull { LocalDate.parse(it) },
     dueTime = dueTime.parseOrNull { LocalTime.parse(it) },
-    reminderTime = reminderTime.parseOrNull { LocalTime.parse(it) },
+    reminders = reminders.mapNotNull { it.toDomain() }.distinct()
+        // A v2 file written before `reminders` existed carries only the legacy single time; it
+        // maps to the same-day reminder that time always meant.
+        .ifEmpty { listOfNotNull(reminderTime.parseOrNull { LocalTime.parse(it) }?.let { Reminder(ReminderTrigger.DaysBeforeDue(0, it)) }) },
     completedAt = completedAt.parseOrNull { Instant.parse(it) },
     createdAt = createdAt.parseOrNull { Instant.parse(it) } ?: Instant.EPOCH,
     sortOrder = sortOrder,
@@ -397,6 +443,35 @@ private fun BackupTask.toDomain() = Task(
     updatedAt = updatedAt.parseOrNull { Instant.parse(it) } ?: Instant.EPOCH,
     deletedAt = deletedAt.parseOrNull { Instant.parse(it) },
 )
+
+private fun Reminder.toBackup() = BackupReminder(
+    kind = when (trigger) {
+        is ReminderTrigger.BeforeDueTime -> "beforeDueTime"
+        is ReminderTrigger.DaysBeforeDue -> "daysBeforeDue"
+        is ReminderTrigger.At -> "at"
+    },
+    minutes = (trigger as? ReminderTrigger.BeforeDueTime)?.minutes,
+    days = (trigger as? ReminderTrigger.DaysBeforeDue)?.days,
+    at = (trigger as? ReminderTrigger.DaysBeforeDue)?.at?.toString(),
+    dateTime = (trigger as? ReminderTrigger.At)?.dateTime?.toString(),
+    repeat = repeat?.let { BackupRepeat(it.everyMinutes, it.count) },
+)
+
+/** Unknown `kind` decodes to null and is skipped by the caller. */
+private fun BackupReminder.toDomain(): Reminder? {
+    val repeat = repeat?.let { ReminderRepeat(it.everyMinutes, it.count) }
+    val trigger = when (kind) {
+        "beforeDueTime" -> minutes?.let { ReminderTrigger.BeforeDueTime(it) }
+        "daysBeforeDue" -> {
+            val d = days
+            val t = at.parseOrNull { LocalTime.parse(it) }
+            if (d != null && t != null) ReminderTrigger.DaysBeforeDue(d, t) else null
+        }
+        "at" -> dateTime.parseOrNull { LocalDateTime.parse(it) }?.let { ReminderTrigger.At(it) }
+        else -> null
+    } ?: return null
+    return Reminder(trigger, repeat)
+}
 
 private fun RecurrenceRule.toBackup() = BackupRecurrence(
     mode = mode.name,

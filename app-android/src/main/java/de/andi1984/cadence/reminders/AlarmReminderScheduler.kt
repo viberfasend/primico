@@ -12,13 +12,15 @@ import de.andi1984.cadence.domain.model.Task
 import de.andi1984.cadence.domain.reminder.ReminderCommand
 import de.andi1984.cadence.domain.reminder.ReminderKey
 import de.andi1984.cadence.domain.reminder.ReminderReconciler
+import de.andi1984.cadence.domain.reminder.ReminderSource
+import de.andi1984.cadence.domain.reminder.ReminderTrigger
 import de.andi1984.cadence.ui.platform.ReminderScheduler
 import java.time.Duration
 import java.time.Instant
 
 /**
  * Android's answer to [ReminderScheduler]: AlarmManager, which the desktop has no counterpart
- * for — phase 5 runs a coroutine timer against the same port instead.
+ * for — the desktop runs a coroutine timer against the same port instead.
  *
  * A thin adapter: the diff between what is armed and what the tasks call for — which alarm to
  * set, which to cancel, which to leave alone — is [ReminderReconciler]'s, pure and tested in
@@ -51,10 +53,10 @@ class AlarmReminderScheduler(private val context: Context) : ReminderScheduler {
 
     /**
      * Brings the scheduled alarms in line with [tasks], [leadMinutes] and [enabled]. Every task
-     * gets one alarm per candidate lead — every positive entry in [leadMinutes] plus `0`, the
-     * moment [Task.reminderTime] itself names — each either (re)scheduled or cancelled, so
-     * removing a reminder, dropping a lead value from Settings or switching reminders off takes
-     * effect on the next sync.
+     * gets one alarm per planned slot — every positive entry in [leadMinutes] counted back from
+     * its due time (`lead:N`), plus one per entry of the task's own reminder list — each either
+     * (re)scheduled or cancelled, so removing a reminder, dropping a lead value from Settings or
+     * switching reminders off takes effect on the next sync.
      */
     override fun sync(tasks: List<Task>, leadMinutes: List<Int>, enabled: Boolean) {
         val manager = alarmManager ?: return
@@ -82,15 +84,61 @@ class AlarmReminderScheduler(private val context: Context) : ReminderScheduler {
                     apply(manager, ReminderReconciler.retire(key, armedAt, now, GRACE), previous, next, now)
                     return
                 }
-                val intent = pendingIntent(key.taskId, command.task.title, key.leadMinutes, create = true) ?: return
+                val intent = pendingIntent(
+                    key.taskId,
+                    command.task.title,
+                    key.slot,
+                    contentText = contentTextFor(command.source),
+                    create = true,
+                ) ?: return
                 arm(manager, command.at.toEpochMilli(), intent)
                 next[key] = command.at
             }
             is ReminderCommand.Cancel -> {
-                cancelLead(command.key.taskId, command.key.leadMinutes)
+                cancelSlot(command.key.taskId, command.key.slot)
                 next.remove(command.key)
             }
             is ReminderCommand.Keep -> Unit
+        }
+    }
+
+    /**
+     * The notification's content line, worded from the trigger the way the plan describes:
+     * "Due in 2 days" / "Due tomorrow" / "Due today" / "Overdue" for a days-before reminder,
+     * the lead plurals for minutes before the due moment, a plain "Reminder" for a fixed
+     * date-time. Computed at arm time — the trigger fixes the relation to the due date, so the
+     * wording is still right when the alarm fires.
+     */
+    private fun contentTextFor(source: ReminderSource): String = when (source) {
+        is ReminderSource.Lead -> context.resources.getQuantityString(
+            R.plurals.reminder_lead_content_text,
+            source.minutes,
+            source.minutes,
+        )
+        is ReminderSource.Entry -> when (val trigger = source.reminder.trigger) {
+            is ReminderTrigger.DaysBeforeDue -> when {
+                trigger.days > 0 -> context.resources.getQuantityString(
+                    R.plurals.reminder_due_in_days,
+                    trigger.days,
+                    trigger.days,
+                )
+                trigger.days == 0 -> context.getString(R.string.reminder_content_text)
+                else -> context.resources.getQuantityString(
+                    R.plurals.reminder_overdue,
+                    -trigger.days,
+                    -trigger.days,
+                )
+            }
+            is ReminderTrigger.BeforeDueTime -> if (trigger.minutes > 0) {
+                context.resources.getQuantityString(
+                    R.plurals.reminder_lead_content_text,
+                    trigger.minutes,
+                    trigger.minutes,
+                )
+            } else {
+                context.getString(R.string.reminder_content_text)
+            }
+            is ReminderTrigger.At -> context.getString(R.string.reminder_at_content_text)
         }
     }
 
@@ -109,18 +157,18 @@ class AlarmReminderScheduler(private val context: Context) : ReminderScheduler {
 
     override fun cancel(taskId: String) {
         val previous = ReminderRequestCodes.armed(context)
-        // 0 (the legacy reminderTime alarm) predates the armed record and so is always
+        // "0" (the legacy reminderTime alarm) predates the armed record and so is always
         // attempted, whether or not a sync ever ran to record it as armed.
-        val leads = previous.keys.filter { it.taskId == taskId }.map { it.leadMinutes }.toSet() + 0
-        leads.forEach { lead -> cancelLead(taskId, lead) }
+        val slots = previous.keys.filter { it.taskId == taskId }.map { it.slot }.toSet() + "0"
+        slots.forEach { slot -> cancelSlot(taskId, slot) }
         ReminderRequestCodes.setArmed(context, previous, previous.filterKeys { it.taskId != taskId })
     }
 
-    private fun cancelLead(taskId: String, leadMinutes: Int) {
-        // No persisted code means this (task, lead) was never scheduled — nothing to cancel, and
+    private fun cancelSlot(taskId: String, slot: String) {
+        // No persisted code means this (task, slot) was never scheduled — nothing to cancel, and
         // looking one up must not assign one (see ReminderRequestCodes.existingCodeFor).
-        val requestCode = ReminderRequestCodes.existingCodeFor(context, taskId, leadMinutes) ?: return
-        val intent = pendingIntent(taskId, title = "", leadMinutes, requestCode = requestCode, create = false)
+        val requestCode = ReminderRequestCodes.existingCodeFor(context, taskId, slot) ?: return
+        val intent = pendingIntent(taskId, title = "", slot = slot, contentText = "", requestCode = requestCode, create = false)
             ?: return
         alarmManager?.cancel(intent)
     }
@@ -128,16 +176,18 @@ class AlarmReminderScheduler(private val context: Context) : ReminderScheduler {
     private fun pendingIntent(
         taskId: String,
         title: String,
-        leadMinutes: Int,
-        requestCode: Int = ReminderRequestCodes.codeFor(context, taskId, leadMinutes),
+        slot: String,
+        contentText: String,
+        requestCode: Int = ReminderRequestCodes.codeFor(context, taskId, slot),
         create: Boolean,
     ): PendingIntent? {
         val intent = Intent(context, ReminderReceiver::class.java).apply {
             action = ACTION_REMIND
-            data = android.net.Uri.parse("cadence://task/$taskId/$leadMinutes")
+            data = android.net.Uri.parse("cadence://task/$taskId/${android.net.Uri.encode(slot)}")
             putExtra(EXTRA_TASK_ID, taskId)
             putExtra(EXTRA_TITLE, title)
-            putExtra(EXTRA_LEAD_MINUTES, leadMinutes)
+            putExtra(EXTRA_SLOT, slot)
+            putExtra(EXTRA_CONTENT_TEXT, contentText)
         }
         val extra = if (create) 0 else PendingIntent.FLAG_NO_CREATE
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE or extra
@@ -149,7 +199,8 @@ class AlarmReminderScheduler(private val context: Context) : ReminderScheduler {
         const val ACTION_REMIND = "de.andi1984.cadence.REMIND"
         const val EXTRA_TASK_ID = "taskId"
         const val EXTRA_TITLE = "title"
-        const val EXTRA_LEAD_MINUTES = "leadMinutes"
+        const val EXTRA_SLOT = "slot"
+        const val EXTRA_CONTENT_TEXT = "contentText"
         /**
          * How long after its trigger an armed alarm nothing plans any more is left alone rather
          * than cancelled. Exact alarms arrive within seconds; the inexact fallback can be

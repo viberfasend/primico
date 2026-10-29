@@ -81,7 +81,7 @@ All under [`core/src/jvmShared/kotlin/de/andi1984/cadence/`](../../core/src/jvmS
 | `domain.model` | `Task`, `Project`, `Section`, `Tag`, `Attachment`, `Priority`, `RecurrenceRule` and its enums |
 | `domain.parse` | `QuickAddParser`, `QuickAddLexicon`, `QuickAddPatterns` |
 | `domain.recurrence` | `RecurrenceEngine`, `RecurrenceSummary` (structured, prose-free summaries) |
-| `domain.reminder` | `ReminderPlanner` (when), `ReminderReconciler` (what to arm, cancel or keep) |
+| `domain.reminder` | `Reminder`/`ReminderTrigger`/`ReminderRepeat` (the model), `ReminderPlanner` (when), `ReminderReconciler` (what to arm, cancel or keep) |
 
 ## Package map — `:ui`
 

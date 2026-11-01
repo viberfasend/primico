@@ -1,5 +1,6 @@
 package de.andi1984.cadence
 
+import de.andi1984.cadence.data.AttachmentStore
 import de.andi1984.cadence.data.CadenceRepository
 import de.andi1984.cadence.data.MAX_ATTACHMENTS_PER_TASK
 import de.andi1984.cadence.data.RepositoryResult
@@ -16,10 +17,12 @@ import de.andi1984.cadence.domain.model.Task
 import de.andi1984.cadence.domain.reminder.Reminder
 import de.andi1984.cadence.domain.reminder.ReminderPlanner
 import de.andi1984.cadence.domain.reminder.ReminderTrigger
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -722,6 +725,48 @@ class CadenceRepositoryTest {
             assertEquals(CadenceRepository.AddAttachmentResult.LimitReached, result)
             assertEquals(MAX_ATTACHMENTS_PER_TASK, attachmentStore.forTask(task.id).size)
         }
+
+    @Test
+    fun `a blob a concurrent add just filed is not reclaimed out from under its row`() = runTest {
+        val taskA = store(Task(title = "A"))
+        val bytes = byteArrayOf(1, 2, 3)
+        val hash = attach(taskA.id, bytes)
+        val taskB = store(Task(title = "B"))
+
+        // Parks the reclaim at the window the race lived in: stillReferenced has answered, the
+        // delete has not run yet.
+        val readAnswered = CompletableDeferred<Unit>()
+        val releaseReclaim = CompletableDeferred<Unit>()
+        val parkingStore = object : AttachmentStore by attachmentStore {
+            override suspend fun stillReferenced(hashes: List<String>): List<String> {
+                val still = attachmentStore.stillReferenced(hashes)
+                readAnswered.complete(Unit)
+                releaseReclaim.await()
+                return still
+            }
+        }
+        val gated = CadenceRepository(
+            taskStore, projectStore, sectionStore, tagStore, stores.backupStore,
+            parkingStore, blobStore, stores.storeTransaction, Dispatchers.Unconfined, clock,
+        )
+
+        val deleteJob = launch { gated.deleteAttachment(attachmentStore.forTask(taskA.id).single().id) }
+        readAnswered.await()
+        val addJob = launch {
+            gated.addFileAttachment(taskB.id, ByteArrayInputStream(bytes), "file.bin", "application/octet-stream")
+        }
+        // The gate spans the read and the delete, so the add cannot slip its row in between them:
+        // it waits until the reclaim has finished, then re-stores the bytes it just deleted.
+        advanceUntilIdle()
+        assertFalse(addJob.isCompleted)
+
+        releaseReclaim.complete(Unit)
+        deleteJob.join()
+        addJob.join()
+
+        assertEquals(hash, attachmentStore.forTask(taskB.id).single().sha256)
+        assertNotNull(blobStore.file(hash))
+    }
 
     // ── Manual order ───────────────────────────────────────────────────────────────
     //

@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -37,6 +38,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import de.andi1984.cadence.ui.resources.Res
 import de.andi1984.cadence.ui.resources.*
@@ -330,6 +332,15 @@ private fun OverduePill(overdue: Int, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * Below this row width the pills move from beside the name to a line under it. Inline, the
+ * chevron, swatch, "3 overdue", "12 tasks" and the menu are all measured before the name's
+ * weighted column, and on a phone they add up to the whole row — German labels are wider still —
+ * leaving the name zero width. The threshold is the row's own width, not the window's, so a
+ * narrow desktop window or detail pane gets the same treatment.
+ */
+private val COMPACT_ROW_WIDTH = 480.dp
+
 @Composable
 private fun ProjectRow(
     project: Project,
@@ -343,70 +354,88 @@ private fun ProjectRow(
     menu: @Composable () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 68.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(scheme.surfaceContainer),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Box(
-            modifier = Modifier
-                .padding(start = 6.dp)
-                .size(44.dp)
-                .clip(CircleShape)
-                .clickable(enabled = expandable, onClick = onToggleExpand),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (expandable) {
-                Icon(
-                    imageVector = if (collapsed) AppIcons.ChevronRight else AppIcons.ExpandMore,
-                    contentDescription = if (collapsed) {
-                        stringResource(Res.string.action_expand)
-                    } else {
-                        stringResource(Res.string.action_collapse)
-                    },
-                    tint = scheme.onSurfaceVariant,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
-        }
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val compact = maxWidth < COMPACT_ROW_WIDTH
         Row(
             modifier = Modifier
-                .weight(1f)
-                .clickable(onClick = onClick)
-                .padding(vertical = 14.dp),
+                .fillMaxWidth()
+                .heightIn(min = 68.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(scheme.surfaceContainer),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            ProjectSwatch(colorHex = project.colorHex, size = 14)
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(3.dp),
+            Box(
+                modifier = Modifier
+                    .padding(start = 6.dp)
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .clickable(enabled = expandable, onClick = onToggleExpand),
+                contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = project.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = scheme.onSurface,
-                    maxLines = 1,
-                )
-                if (subtitle != null) {
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = scheme.onSurfaceVariant,
-                        maxLines = 1,
+                if (expandable) {
+                    Icon(
+                        imageVector = if (collapsed) AppIcons.ChevronRight else AppIcons.ExpandMore,
+                        contentDescription = if (collapsed) {
+                            stringResource(Res.string.action_expand)
+                        } else {
+                            stringResource(Res.string.action_collapse)
+                        },
+                        tint = scheme.onSurfaceVariant,
+                        modifier = Modifier.size(22.dp),
                     )
                 }
             }
-            if (overdue > 0) {
-                OverduePill(overdue)
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onClick)
+                    .padding(vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                ProjectSwatch(colorHex = project.colorHex, size = 14)
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    Text(
+                        text = project.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = scheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (subtitle != null) {
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    if (compact) {
+                        Row(
+                            modifier = Modifier.padding(top = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            if (overdue > 0) {
+                                OverduePill(overdue)
+                            }
+                            TaskCountPill(count)
+                        }
+                    }
+                }
+                if (!compact) {
+                    if (overdue > 0) {
+                        OverduePill(overdue)
+                    }
+                    TaskCountPill(count)
+                }
             }
-            TaskCountPill(count)
+            menu()
         }
-        menu()
     }
 }
 
@@ -419,56 +448,75 @@ private fun SubprojectRow(
     menu: @Composable () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 34.dp, bottom = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Spacer(
-            modifier = Modifier
-                .width(2.dp)
-                .height(60.dp)
-                .background(scheme.outlineVariant),
-        )
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val compact = maxWidth < COMPACT_ROW_WIDTH
         Row(
             modifier = Modifier
-                .weight(1f)
-                .heightIn(min = 60.dp)
-                .padding(start = 16.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(scheme.surfaceContainerLow)
-                .clickable(onClick = onClick)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+                .fillMaxWidth()
+                .padding(start = 34.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            ProjectSwatch(colorHex = project.colorHex, size = 10)
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(3.dp),
+            Spacer(
+                modifier = Modifier
+                    .width(2.dp)
+                    .height(60.dp)
+                    .background(scheme.outlineVariant),
+            )
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 60.dp)
+                    .padding(start = 16.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(scheme.surfaceContainerLow)
+                    .clickable(onClick = onClick)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(
-                    text = project.name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = scheme.onSurface,
-                    maxLines = 1,
-                )
-                if (overdue > 0) {
+                ProjectSwatch(colorHex = project.colorHex, size = 10)
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
                     Text(
-                        text = pluralStringResource(
-                            Res.plurals.projects_overdue_count,
-                            overdue,
-                            overdue,
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = scheme.error,
+                        text = project.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = scheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
+                    if (compact) {
+                        Row(
+                            modifier = Modifier.padding(top = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            TaskCountPill(count)
+                            if (overdue > 0) {
+                                SubprojectOverdue(overdue)
+                            }
+                        }
+                    } else if (overdue > 0) {
+                        SubprojectOverdue(overdue)
+                    }
+                }
+                if (!compact) {
+                    TaskCountPill(count)
                 }
             }
-            TaskCountPill(count)
+            menu()
         }
-        menu()
     }
+}
+
+@Composable
+private fun SubprojectOverdue(overdue: Int) {
+    Text(
+        text = pluralStringResource(Res.plurals.projects_overdue_count, overdue, overdue),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.error,
+        maxLines = 1,
+    )
 }
 

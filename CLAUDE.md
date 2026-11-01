@@ -897,3 +897,9 @@ unmapped. See `docs/agents/triage-labels.md`.
 ### Domain docs
 
 Single-context: `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+### Working notes
+
+Gotchas from agent sessions in this repo — Compose pointer/modifier APIs, generated `Res.*`
+imports, the JUnit4-over-real-SQLDelight test style, and the git/PR traps (remote rebases,
+detached-HEAD pushes). See `docs/agents/working-notes.md`.

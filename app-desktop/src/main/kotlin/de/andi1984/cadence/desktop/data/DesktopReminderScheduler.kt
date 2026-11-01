@@ -4,6 +4,7 @@ import de.andi1984.cadence.domain.model.Task
 import de.andi1984.cadence.domain.reminder.ReminderCommand
 import de.andi1984.cadence.domain.reminder.ReminderKey
 import de.andi1984.cadence.domain.reminder.ReminderReconciler
+import de.andi1984.cadence.domain.reminder.ReminderSource
 import de.andi1984.cadence.ui.platform.ReminderScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -26,6 +27,9 @@ import java.util.concurrent.ConcurrentHashMap
  * is zero — a poll has no delivery latency to wait out — and an [ReminderCommand.Arm] naming an
  * instant already in the past is armed like any other, so the next poll fires it: the reminder
  * elapsed while the app was closed, and the balloon is still wanted.
+ *
+ * Alarms are keyed by [ReminderKey]'s slot (`lead:20`, `d1@09:00#0`, …), so editing a reminder
+ * cancels the old key and arms the new one with no stored ids.
  */
 class DesktopReminderScheduler(
     private val scope: CoroutineScope,
@@ -40,6 +44,13 @@ class DesktopReminderScheduler(
     private val notify: (String) -> Unit = { title ->
         trayIcon?.displayMessage("Primico", title, TrayIcon.MessageType.NONE)
     },
+    /**
+     * Words the balloon's content line from the alarm's [ReminderSource] — "Due in 2 days" and
+     * friends, the same wording the Android notification uses. A parameter because the wording
+     * lives in resources, and a non-composable poll cannot call `stringResource`; the shell
+     * supplies one that reads the compose resources, the tests a plain one.
+     */
+    private val labelFor: (String, ReminderSource) -> String = { title, _ -> title },
 ) : ReminderScheduler {
 
     /** The instant each armed alarm is set for — the reconciler's `armed` side, and what a poll
@@ -48,6 +59,7 @@ class DesktopReminderScheduler(
      *  alone, and `fired` is what keeps the poll from firing it every thirty seconds. */
     private val armed = ConcurrentHashMap<ReminderKey, Instant>()
     private val fired = ConcurrentHashMap.newKeySet<ReminderKey>()
+    private val sourceByKey = ConcurrentHashMap<ReminderKey, ReminderSource>()
     private val pendingTitles = ConcurrentHashMap<ReminderKey, String>()
 
     init {
@@ -73,6 +85,7 @@ class DesktopReminderScheduler(
             when (command) {
                 is ReminderCommand.Arm -> {
                     armed[command.key] = command.at
+                    sourceByKey[command.key] = command.source
                     // An alarm moved into the future must be able to fire again rather than
                     // staying silently suppressed by an old entry in `fired` — snoozing a task,
                     // or editing its time to something later, is the ordinary case this guards.
@@ -96,6 +109,7 @@ class DesktopReminderScheduler(
     private fun forget(key: ReminderKey) {
         armed.remove(key)
         fired.remove(key)
+        sourceByKey.remove(key)
         pendingTitles.remove(key)
     }
 
@@ -107,15 +121,9 @@ class DesktopReminderScheduler(
             // the alarm as fired and then skips the balloon when the lookup misses, so no later
             // poll ever retries it — the reminder is lost rather than delayed.
             val title = pendingTitles[key] ?: return@forEach
-            if (fired.add(key)) notify(messageFor(title, key.leadMinutes))
+            if (fired.add(key)) notify(labelFor(title, sourceByKey[key] ?: ReminderSource.Lead(0)))
         }
     }
-
-    /** Lead `0` is the legacy reminderTime alarm, and keeps its plain title exactly as it always
-     *  read. A positive lead says how long is left, the same wording the Android notification's
-     *  content line uses. */
-    private fun messageFor(title: String, leadMinutes: Int): String =
-        if (leadMinutes <= 0) title else "$title — ${leadMinutes}m"
 
     private companion object {
         const val POLL_INTERVAL_MILLIS = 30_000L

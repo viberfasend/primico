@@ -9,6 +9,7 @@ import de.andi1984.cadence.domain.model.Section
 import de.andi1984.cadence.domain.model.Tag
 import de.andi1984.cadence.domain.model.Task
 import de.andi1984.cadence.domain.recurrence.RecurrenceEngine
+import de.andi1984.cadence.domain.reminder.shiftedByDays
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -409,17 +410,22 @@ class CadenceRepository(
             val rule = current.recurrence ?: return@run emptyList()
             val nextDue = RecurrenceEngine.dueDateAfterCompletion(rule, current.dueDate, today)
             val nextId = UuidV7.successorId(current.id, nextDue)
+            val shift = current.dueDate?.let { ChronoUnit.DAYS.between(it, nextDue) } ?: 0L
             insertTask(
                 current.copy(
                     id = nextId,
                     completedAt = null,
                     dueDate = nextDue,
+                    // Relative reminders carry over with the row copy and need no code — they
+                    // are computed from the due date at plan time. An `At` shifts by the same
+                    // day span as the due date, like the subtask dates below; one already in the
+                    // past after the shift is dropped.
+                    reminders = current.reminders.shiftedByDays(shift, now, clock.zone),
                     createdAt = now,
                     updatedAt = now,
                     spawnedFromId = current.id,
                 ),
             )
-            val shift = current.dueDate?.let { ChronoUnit.DAYS.between(it, nextDue) } ?: 0L
             subtasks.forEach { subtask ->
                 insertTask(
                     subtask.copy(

@@ -43,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -57,7 +58,9 @@ import de.andi1984.cadence.domain.model.SubtaskProgress
 import de.andi1984.cadence.domain.model.Task
 import de.andi1984.cadence.domain.model.projectPath
 import de.andi1984.cadence.domain.recurrence.RecurrenceEngine
+import de.andi1984.cadence.domain.reminder.Reminder
 import de.andi1984.cadence.ui.format.describeRecurrence
+import de.andi1984.cadence.ui.format.describeReminder
 import de.andi1984.cadence.ui.format.explanation
 import de.andi1984.cadence.ui.CadenceUiState
 import de.andi1984.cadence.ui.attachments.AttachmentCard
@@ -104,6 +107,9 @@ fun TaskDetailScreen(
     onMoveToSection: (Task, String?) -> Unit,
     onToggleTag: (Task, String) -> Unit = { _, _ -> },
     onCreateTag: (name: String, colorHex: String) -> Unit = { _, _ -> },
+    onAddReminder: (Task, Reminder) -> Unit = { _, _ -> },
+    onUpdateReminder: (Task, Reminder, Reminder) -> Unit = { _, _, _ -> },
+    onRemoveReminder: (Task, Reminder) -> Unit = { _, _ -> },
     /** The shell's file chooser, or null where it has none — the card then offers links only. */
     attachmentPicker: AttachmentFilePicker? = null,
     onAddFileAttachment: (Task, PickedFile) -> Unit = { _, _ -> },
@@ -129,7 +135,9 @@ fun TaskDetailScreen(
     var notes by remember(task.id) { mutableStateOf(task.notes.orEmpty()) }
     var datePickerOpen by remember { mutableStateOf(false) }
     var timePickerOpen by remember { mutableStateOf(false) }
-    var reminderPickerOpen by remember { mutableStateOf(false) }
+    var reminderEditorOpen by remember { mutableStateOf(false) }
+    /** Null when the editor is adding a new reminder, the reminder itself when editing one. */
+    var editingReminder by remember { mutableStateOf<Reminder?>(null) }
     var projectPickerOpen by remember { mutableStateOf(false) }
     var sectionPickerOpen by remember { mutableStateOf(false) }
     var tagPickerOpen by remember { mutableStateOf(false) }
@@ -402,19 +410,6 @@ fun TaskDetailScreen(
                 )
                 DetailDivider()
                 DetailRow(
-                    icon = AppIcons.Notifications,
-                    title = task.reminderTime
-                        ?.let { stringResource(Res.string.task_remind_at, formatTime(it)) }
-                        ?: stringResource(Res.string.task_no_reminder),
-                    supporting = if (task.reminderTime != null) {
-                        stringResource(Res.string.task_on_the_due_day)
-                    } else {
-                        stringResource(Res.string.task_tap_to_add_reminder)
-                    },
-                    onClick = { reminderPickerOpen = true },
-                )
-                DetailDivider()
-                DetailRow(
                     icon = AppIcons.EventRepeat,
                     title = task.recurrence
                         ?.let { describeRecurrence(it) }
@@ -427,6 +422,97 @@ fun TaskDetailScreen(
                     trailingIcon = AppIcons.Tune,
                     onClick = { recurrenceOpen = true },
                 )
+            }
+
+            // The reminders card: every reminder on the task as a row with a remove action, plus
+            // "Add reminder". A task can carry any number of them — minutes before the due time,
+            // days before the due date at a set time, or a fixed date.
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(scheme.surfaceContainer),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .defaultMinSize(minHeight = 64.dp)
+                        .clickable {
+                            editingReminder = null
+                            reminderEditorOpen = true
+                        }
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Icon(
+                        imageVector = AppIcons.Notifications,
+                        contentDescription = null,
+                        tint = scheme.onSurfaceVariant,
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(Res.string.task_reminders),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = scheme.onSurface,
+                        )
+                        Text(
+                            text = if (task.reminders.isEmpty()) {
+                                stringResource(Res.string.task_no_reminders)
+                            } else {
+                                pluralStringResource(
+                                    Res.plurals.task_reminders_count,
+                                    task.reminders.size,
+                                    task.reminders.size,
+                                )
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurfaceVariant,
+                        )
+                    }
+                    Icon(
+                        imageVector = AppIcons.Add,
+                        contentDescription = stringResource(Res.string.task_add_reminder),
+                        tint = scheme.primary,
+                    )
+                }
+                task.reminders.forEach { reminder ->
+                    DetailDivider()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                editingReminder = reminder
+                                reminderEditorOpen = true
+                            }
+                            .defaultMinSize(minHeight = 56.dp)
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        Icon(
+                            imageVector = AppIcons.Notifications,
+                            contentDescription = null,
+                            tint = scheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Text(
+                            text = describeReminder(reminder, today),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = scheme.onSurface,
+                            modifier = Modifier.weight(1f),
+                        )
+                        IconButton(onClick = { onRemoveReminder(task, reminder) }) {
+                            Icon(
+                                imageVector = AppIcons.Close,
+                                contentDescription = stringResource(Res.string.subtasks_remove),
+                                tint = scheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    }
+                }
             }
 
             // Only a top-level task gets a checklist: nesting stops after one level, so a
@@ -572,12 +658,21 @@ fun TaskDetailScreen(
             },
         )
     }
-    if (reminderPickerOpen) {
-        CadenceTimePickerDialog(
-            initial = task.reminderTime,
-            title = stringResource(Res.string.task_remind_at_picker),
-            onDismiss = { reminderPickerOpen = false },
-            onPick = { onSave(task.copy(reminderTime = it)) },
+    if (reminderEditorOpen) {
+        ReminderEditorDialog(
+            task = task,
+            initial = editingReminder,
+            today = today,
+            onDismiss = { reminderEditorOpen = false },
+            onSave = { reminder ->
+                val previous = editingReminder
+                if (previous == null) {
+                    onAddReminder(task, reminder)
+                } else {
+                    onUpdateReminder(task, previous, reminder)
+                }
+                reminderEditorOpen = false
+            },
         )
     }
     if (projectPickerOpen) {

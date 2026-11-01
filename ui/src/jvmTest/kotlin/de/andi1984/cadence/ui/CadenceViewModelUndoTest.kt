@@ -5,6 +5,8 @@ import de.andi1984.cadence.data.TransactionScope
 import de.andi1984.cadence.data.sync.CadenceSyncEngine
 import de.andi1984.cadence.domain.model.Project
 import de.andi1984.cadence.domain.model.Task
+import de.andi1984.cadence.domain.reminder.Reminder
+import de.andi1984.cadence.domain.reminder.ReminderTrigger
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -371,12 +373,12 @@ class CadenceViewModelUndoTest {
                 title = "a",
                 dueDate = LocalDate.of(2026, 8, 17),
                 dueTime = LocalTime.of(18, 0),
-                reminderTime = LocalTime.of(9, 0),
+                reminders = listOf(Reminder(ReminderTrigger.DaysBeforeDue(0, LocalTime.of(9, 0)))),
             ),
         )
         val viewModel = viewModel()
 
-        assertEquals(listOf(LocalTime.of(9, 0)), reminders.lastSynced.map { it.reminderTime })
+        assertEquals(1, reminders.lastSynced.single().reminders.size)
         assertEquals(emptyList<Int>(), reminders.lastLeadMinutes)
         assertEquals(true, reminders.lastEnabled)
 
@@ -384,7 +386,7 @@ class CadenceViewModelUndoTest {
         runCurrent()
 
         assertEquals(false, reminders.lastEnabled)
-        assertEquals(listOf(LocalTime.of(9, 0)), reminders.lastSynced.map { it.reminderTime })
+        assertEquals(1, reminders.lastSynced.single().reminders.size)
         assertEquals(listOf(LocalTime.of(18, 0)), reminders.lastSynced.map { it.dueTime })
 
         viewModel.setReminderLeadMinutes(listOf(20, 10, 5))

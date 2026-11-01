@@ -1,10 +1,13 @@
 package de.andi1984.cadence.data.db
 
+import de.andi1984.cadence.domain.reminder.Reminder
+import de.andi1984.cadence.domain.reminder.ReminderTrigger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.time.LocalTime
 
 /**
  * The desktop's schema versioning, which is hand-rolled because `JdbcSqliteDriver` has no
@@ -36,7 +39,7 @@ class DatabaseDriverFactoryTest {
                 id = "t1", title = "Survives", notes = null, priority = 2, projectId = null,
                 sectionId = null, tagIds = null, parentId = null, spawnedFromId = null, dueDate = null, dueTime = null,
                 reminderTime = null, completedAt = null, createdAt = 0, sortOrder = 0,
-                recurrence = null, updatedAt = 0, deletedAt = null,
+                recurrence = null, updatedAt = 0, deletedAt = null, reminders = "",
             ),
         )
         first.close()
@@ -61,7 +64,7 @@ class DatabaseDriverFactoryTest {
                 id = "t1", title = "Older than sync", notes = null, priority = 2, projectId = null,
                 sectionId = null, tagIds = null, parentId = null, spawnedFromId = null, dueDate = null, dueTime = null,
                 reminderTime = null, completedAt = null, createdAt = 0, sortOrder = 0,
-                recurrence = null, updatedAt = 0, deletedAt = null,
+                recurrence = null, updatedAt = 0, deletedAt = null, reminders = "",
             ),
         )
         // Wind the file back to what a phase-1 install looks like on disk. `taskRow` may keep its
@@ -138,7 +141,7 @@ class DatabaseDriverFactoryTest {
                 id = "t2", title = "Not pulled yet", notes = null, priority = 2, projectId = "ghost",
                 sectionId = null, tagIds = null, parentId = null, spawnedFromId = null, dueDate = null, dueTime = null,
                 reminderTime = null, completedAt = null, createdAt = 0, sortOrder = 0,
-                recurrence = null, updatedAt = 1, deletedAt = null,
+                recurrence = null, updatedAt = 1, deletedAt = null, reminders = "",
             ),
         )
         assertEquals(2, database.taskQueries.selectAll(::toTask).executeAsList().size)
@@ -237,6 +240,49 @@ class DatabaseDriverFactoryTest {
         assertEquals(1, database.tagQueries.selectAll(::toTag).executeAsList().size)
         // The cursor the migration appended, on a device that had already synced the other three.
         assertEquals(null, database.syncStateQueries.select().executeAsOne().tagCursor)
+        migrated.close()
+    }
+
+    /**
+     * The 5 → 6 migration: the packed `reminders` column, appended last, and every legacy
+     * `reminderTime` converted to the same-day reminder it always meant (`v1;d0@HH:MM`).
+     *
+     * Same thing to get wrong as 4 → 5 — the appended column has to be the *last* one, because
+     * every read is a `SELECT *` mapped positionally — plus the conversion itself: a version-5 row
+     * carrying `reminderTime` has to come back through the mapper as `DaysBeforeDue(0, t)`, and
+     * one without it as no reminders at all.
+     */
+    @Test
+    fun `the 5 to 6 migration converts reminderTime into a same-day reminder`() {
+        val setup = DatabaseDriverFactory(folder.root).createDriver()
+        setup.execute(null, "DROP TABLE taskRow", 0)
+        setup.execute(null, "DROP TABLE syncStateRow", 0)
+        VERSION_5_TASK_TABLE.forEach { setup.execute(null, it, 0) }
+        VERSION_4_SYNC_STATE.forEach { setup.execute(null, it, 0) }
+        // 09:30 as second of day.
+        setup.execute(
+            null,
+            "INSERT INTO taskRow(id, title, priority, projectId, createdAt, sortOrder, updatedAt, sectionId, tagIds, reminderTime) " +
+                "VALUES ('t1', 'Water the plants', 2, 'p1', 0, 0, 1, 's1', 'g1', 34200)," +
+                "('t2', 'No reminder', 2, 'p1', 0, 1, 1, NULL, NULL, NULL)",
+            0,
+        )
+        setup.execute(null, "PRAGMA user_version = 5", 0)
+        setup.close()
+
+        val migrated = DatabaseDriverFactory(folder.root).createDriver()
+
+        val database = CadenceDatabase(migrated)
+        assertEquals(CadenceDatabase.Schema.version, migrated.userVersion())
+        val tasks = database.taskQueries.selectAll(::toTask).executeAsList()
+        val reminded = tasks.single { it.id == "t1" }
+        assertEquals("s1", reminded.sectionId)
+        assertEquals(listOf("g1"), reminded.tagIds)
+        assertEquals(
+            listOf(Reminder(ReminderTrigger.DaysBeforeDue(0, LocalTime.of(9, 30)))),
+            reminded.reminders,
+        )
+        assertEquals(emptyList<Reminder>(), tasks.single { it.id == "t2" }.reminders)
         migrated.close()
     }
 
@@ -408,6 +454,40 @@ class DatabaseDriverFactoryTest {
             )
             """.trimIndent(),
             "INSERT INTO syncStateRow(id, pushWatermark) VALUES (1, 0)",
+        )
+
+        /** `taskRow` as version 5 declared it — `tagIds` appended, and no `reminders` yet. */
+        val VERSION_5_TASK_TABLE = listOf(
+            """
+            CREATE TABLE taskRow (
+                id TEXT NOT NULL PRIMARY KEY,
+                title TEXT NOT NULL,
+                notes TEXT,
+                priority INTEGER NOT NULL,
+                projectId TEXT,
+                parentId TEXT,
+                spawnedFromId TEXT,
+                dueDate INTEGER,
+                dueTime INTEGER,
+                reminderTime INTEGER,
+                completedAt INTEGER,
+                createdAt INTEGER NOT NULL,
+                sortOrder INTEGER NOT NULL,
+                recurrence TEXT,
+                updatedAt INTEGER NOT NULL,
+                deletedAt INTEGER,
+                sectionId TEXT,
+                tagIds TEXT
+            )
+            """.trimIndent(),
+            "CREATE INDEX idx_task_project ON taskRow(projectId)",
+            "CREATE INDEX idx_task_parent ON taskRow(parentId)",
+            "CREATE INDEX idx_task_spawned_from ON taskRow(spawnedFromId)",
+            "CREATE INDEX idx_task_due ON taskRow(dueDate)",
+            "CREATE INDEX idx_task_completed ON taskRow(completedAt)",
+            "CREATE INDEX idx_task_sort ON taskRow(sortOrder)",
+            "CREATE INDEX idx_task_updated ON taskRow(updatedAt)",
+            "CREATE INDEX idx_task_section ON taskRow(sectionId)",
         )
 
     }

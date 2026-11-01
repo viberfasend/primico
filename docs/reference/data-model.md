@@ -58,7 +58,7 @@ live tag answers to is dropped by `CadenceUiState.tagsOf`.
 | `spawnedFromId` | `String?` | `null` | The finished occurrence whose completion inserted this row. |
 | `dueDate` | `LocalDate?` | `null` | Due day. |
 | `dueTime` | `LocalTime?` | `null` | Due time of day. Reminder leads count back from it. |
-| `reminderTime` | `LocalTime?` | `null` | An exact reminder time on the due day, independent of `dueTime`. |
+| `reminders` | `List<Reminder>` | `emptyList()` | The task's reminders — minutes before the due time, days before the due date at a set time, or a fixed date-time, each optionally repeating. Packed into one column on the task row (ADR 0006). |
 | `completedAt` | `Instant?` | `null` | When it was completed; `null` while open. |
 | `createdAt` | `Instant` | `Instant.EPOCH` | Creation time. |
 | `sortOrder` | `Int` | `0` | Manual position within its project (or the Inbox). Subtasks are ordered within their parent. |

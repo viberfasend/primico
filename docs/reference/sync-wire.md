@@ -55,7 +55,8 @@ Primary key on every table: `(user_id, id)`.
 | `section_id` | `uuid` | |
 | `due_date` | `date` | |
 | `due_time` | `time` | |
-| `reminder_time` | `time` | |
+| `reminder_time` | `time` | Kept for older clients: the first same-day reminder's time. |
+| `reminders` | `jsonb not null default '[]' check (array)` | the [reminder object](#remotereminder); added by `0003_task_reminders.sql`. Old-client pushes omit it and the upsert leaves the stored value alone. |
 | `completed_at` | `timestamptz` | |
 | `created_at` | `timestamptz not null` | |
 | `sort_order` | `integer not null` | no default — the client always sends it |
@@ -130,7 +131,8 @@ rejects a bulk insert whose objects disagree on keys) and decoded with `ignoreUn
 | `spawned_from_id` | string \| null | `spawnedFromId` | |
 | `due_date` | string \| null | `dueDate` | ISO date |
 | `due_time` | string \| null | `dueTime` | ISO time |
-| `reminder_time` | string \| null | `reminderTime` | ISO time |
+| `reminder_time` | string \| null | — (derived) | ISO time; written as the first `DaysBeforeDue(0)`'s `at`, read as that reminder when `reminders` is empty. |
+| `reminders` | array of object | `reminders` | see [RemoteReminder](#remotereminder) |
 | `completed_at` | string \| null | `completedAt` | instant |
 | `created_at` | string | `createdAt` | instant; unreadable reads as the epoch |
 | `sort_order` | number | `sortOrder` | |
@@ -138,6 +140,21 @@ rejects a bulk insert whose objects disagree on keys) and decoded with `ignoreUn
 | `updated_at` | string | `updatedAt` | instant; unreadable reads as the epoch |
 | `deleted_at` | string \| null | `deletedAt` | instant |
 | `server_updated_at` | string \| null | — | read for the cursor, ignored on the way out |
+
+### RemoteReminder
+
+The `reminders` jsonb array's element. Same JSON shape as the backup file's reminder, but a
+separate DTO (the existing rule: a Postgres column rename must not change an exported file). Keys
+are snake_case inside, as elsewhere on the wire. Unknown `kind` values are skipped on read.
+
+| JSON key | Type | Domain field |
+|---|---|---|
+| `kind` | string | `beforeDueTime` \| `daysBeforeDue` \| `at` |
+| `minutes` | number \| null | `BeforeDueTime.minutes` |
+| `days` | number \| null | `DaysBeforeDue.days` |
+| `at` | string \| null | `DaysBeforeDue.at`, ISO time |
+| `date_time` | string \| null | `At.dateTime`, ISO local date-time |
+| `repeat` | object \| null | `{"every_minutes": 10, "count": 3 \| null}` |
 
 ### RemoteProject, RemoteSection, RemoteTag
 

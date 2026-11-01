@@ -30,6 +30,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -302,6 +303,17 @@ private fun TaskRowContent(
                             }
                             if (attachmentCount > 0) {
                                 AttachmentChip(count = attachmentCount, tint = metaColor)
+                            }
+                            if (task.reminders.isNotEmpty()) {
+                                MetaWithIcon(
+                                    icon = AppIcons.Notifications,
+                                    label = pluralStringResource(
+                                        Res.plurals.task_reminders_count,
+                                        task.reminders.size,
+                                        task.reminders.size,
+                                    ),
+                                    tint = metaColor,
+                                )
                             }
                             if (parentTitle != null) {
                                 MetaWithIcon(

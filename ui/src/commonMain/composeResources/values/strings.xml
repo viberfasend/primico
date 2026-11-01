@@ -300,10 +300,52 @@
     <string name="task_no_due_time">No time</string>
     <string name="task_tap_to_add_time">Tap to add one — reminders count back from it</string>
     <string name="task_tap_to_change_time">Tap to change or clear</string>
-    <string name="task_remind_at">Remind at %1$s</string>
-    <string name="task_no_reminder">No reminder</string>
-    <string name="task_on_the_due_day">On the due day</string>
-    <string name="task_tap_to_add_reminder">Tap to add one</string>
+    <string name="task_reminders">Reminders</string>
+    <string name="task_no_reminders">No reminders yet</string>
+    <string name="task_add_reminder">Add reminder</string>
+    <plurals name="task_reminders_count">
+        <item quantity="one">%1$d reminder</item>
+        <item quantity="other">%1$d reminders</item>
+    </plurals>
+    <string name="reminder_editor_title">Reminder</string>
+    <string name="reminder_editor_kind">Kind</string>
+    <string name="reminder_kind_before_due_time">Before the due time</string>
+    <string name="reminder_kind_days_before_due">Days before the due date</string>
+    <string name="reminder_kind_at">On a date</string>
+    <string name="reminder_preset_same_day">On the due day</string>
+    <string name="reminder_preset_1_day">1 day before</string>
+    <string name="reminder_preset_2_days">2 days before</string>
+    <string name="reminder_preset_1_week">1 week before</string>
+    <string name="reminder_preset_minutes">%1$d min before</string>
+    <string name="reminder_preset_time_at">at %1$s</string>
+    <string name="reminder_editor_date">Date</string>
+    <string name="reminder_editor_time">Time</string>
+    <string name="reminder_on_due_day_at">On the due day at %1$s</string>
+    <plurals name="reminder_days_before_at">
+        <item quantity="one">1 day before at %2$s</item>
+        <item quantity="other">%1$d days before at %2$s</item>
+    </plurals>
+    <plurals name="reminder_minutes_before">
+        <item quantity="one">%1$d minute before the due time</item>
+        <item quantity="other">%1$d minutes before the due time</item>
+    </plurals>
+    <string name="reminder_at_date_time">On %1$s at %2$s</string>
+    <string name="reminder_repeat_times">%1$s · every %2$d min, %3$d times</string>
+    <string name="reminder_repeat_until_done">%1$s · every %2$d min, until done</string>
+    <string name="reminder_content_text">Due today</string>
+    <string name="reminder_at_content_text">Reminder</string>
+    <plurals name="reminder_lead_content_text">
+        <item quantity="one">In %1$d minute</item>
+        <item quantity="other">In %1$d minutes</item>
+    </plurals>
+    <plurals name="reminder_due_in_days">
+        <item quantity="one">Due tomorrow</item>
+        <item quantity="other">Due in %1$d days</item>
+    </plurals>
+    <plurals name="reminder_overdue">
+        <item quantity="one">Overdue by a day</item>
+        <item quantity="other">Overdue by %1$d days</item>
+    </plurals>
     <string name="task_does_not_repeat">Does not repeat</string>
     <string name="task_next_occurrence">Next: %1$s</string>
     <string name="task_recurrence_supporting">Calendar rules or “n days after done”</string>
@@ -313,7 +355,6 @@
     <string name="task_mark_done">Mark done</string>
     <string name="task_mark_not_done">Mark not done</string>
     <string name="task_due_at_picker">Due at</string>
-    <string name="task_remind_at_picker">Remind at</string>
 
     <!-- ── Subtasks ────────────────────────────────────────────────────────────────── -->
     <string name="subtasks_title">Subtasks</string>

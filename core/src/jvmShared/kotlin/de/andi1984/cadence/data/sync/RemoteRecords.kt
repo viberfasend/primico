@@ -10,12 +10,16 @@ import de.andi1984.cadence.domain.model.Section
 import de.andi1984.cadence.domain.model.Tag
 import de.andi1984.cadence.domain.model.Task
 import de.andi1984.cadence.domain.parseOrNull
+import de.andi1984.cadence.domain.reminder.Reminder
+import de.andi1984.cadence.domain.reminder.ReminderRepeat
+import de.andi1984.cadence.domain.reminder.ReminderTrigger
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.OffsetDateTime
 import java.time.temporal.ChronoUnit
@@ -83,6 +87,16 @@ data class RemoteTask(
     @SerialName("spawned_from_id") val spawnedFromId: String? = null,
     @SerialName("due_date") val dueDate: String? = null,
     @SerialName("due_time") val dueTime: String? = null,
+    /**
+     * The task's reminders as a `jsonb` array of tagged objects — the published shape, not the
+     * packed column. `encodeDefaults` is on (see [SyncJson]), so new clients always send the
+     * column; an old client omits it and the upsert leaves the server's value untouched.
+     */
+    val reminders: List<RemoteReminder> = emptyList(),
+    /**
+     * The legacy single reminder time, still written so an older client still fires something:
+     * the `at` of the first `DaysBeforeDue(0)`. Read on the way in for rows pushed by old clients.
+     */
     @SerialName("reminder_time") val reminderTime: String? = null,
     @SerialName("completed_at") val completedAt: String? = null,
     @SerialName("created_at") val createdAt: String,
@@ -132,6 +146,30 @@ data class RemoteTag(
     @SerialName("server_updated_at") val serverUpdatedAt: String? = null,
 )
 
+/**
+ * One reminder on the wire, as a tagged object in the `reminders` jsonb array — the same JSON
+ * shape as the backup file's, but a separate DTO on purpose: a Postgres column rename must not
+ * change the shape of an exported backup. Unknown kinds are skipped on read.
+ */
+@Serializable
+data class RemoteReminder(
+    val kind: String,
+    val minutes: Int? = null,
+    val days: Int? = null,
+    /** ISO local time, e.g. `09:00`. */
+    val at: String? = null,
+    /** ISO local date-time, e.g. `2026-10-26T09:00`. */
+    @SerialName("date_time") val dateTime: String? = null,
+    val repeat: RemoteRepeat? = null,
+)
+
+@Serializable
+data class RemoteRepeat(
+    @SerialName("every_minutes") val everyMinutes: Int,
+    /** Null means "until the task is done or the reminder is dismissed". */
+    val count: Int? = null,
+)
+
 @Serializable
 data class RemoteRecurrence(
     val mode: String = RecurrenceMode.SCHEDULE.name,
@@ -157,7 +195,11 @@ fun Task.toRemote() = RemoteTask(
     spawnedFromId = spawnedFromId,
     dueDate = dueDate?.toString(),
     dueTime = dueTime?.toString(),
-    reminderTime = reminderTime?.toString(),
+    reminders = reminders.map { it.toRemote() },
+    // Kept for older clients: the time of the first same-day reminder.
+    reminderTime = reminders.firstNotNullOfOrNull { r ->
+        (r.trigger as? ReminderTrigger.DaysBeforeDue)?.takeIf { it.days == 0 }?.at?.toString()
+    },
     completedAt = completedAt?.toString(),
     createdAt = createdAt.toString(),
     sortOrder = sortOrder,
@@ -189,7 +231,12 @@ fun RemoteTask.toDomain() = Task(
     spawnedFromId = spawnedFromId?.takeIf { it.isNotBlank() },
     dueDate = dueDate.parseOrNull { LocalDate.parse(it) },
     dueTime = dueTime.parseOrNull { LocalTime.parse(it) },
-    reminderTime = reminderTime.parseOrNull { LocalTime.parse(it) },
+    reminders = reminders.mapNotNull { it.toDomain() }.distinct()
+        // A row pushed by an old client carries only `reminder_time`; it maps to the same-day
+        // reminder that time always meant.
+        .ifEmpty {
+            listOfNotNull(reminderTime.parseOrNull { LocalTime.parse(it) }?.let { Reminder(ReminderTrigger.DaysBeforeDue(0, it)) })
+        },
     completedAt = completedAt.parseInstantOrNull(),
     createdAt = createdAt.parseInstantOrNull() ?: Instant.EPOCH,
     sortOrder = sortOrder,
@@ -253,6 +300,35 @@ fun RemoteTag.toDomain() = Tag(
     updatedAt = updatedAt.parseInstantOrNull() ?: Instant.EPOCH,
     deletedAt = deletedAt.parseInstantOrNull(),
 )
+
+private fun Reminder.toRemote() = RemoteReminder(
+    kind = when (trigger) {
+        is ReminderTrigger.BeforeDueTime -> "beforeDueTime"
+        is ReminderTrigger.DaysBeforeDue -> "daysBeforeDue"
+        is ReminderTrigger.At -> "at"
+    },
+    minutes = (trigger as? ReminderTrigger.BeforeDueTime)?.minutes,
+    days = (trigger as? ReminderTrigger.DaysBeforeDue)?.days,
+    at = (trigger as? ReminderTrigger.DaysBeforeDue)?.at?.toString(),
+    dateTime = (trigger as? ReminderTrigger.At)?.dateTime?.toString(),
+    repeat = repeat?.let { RemoteRepeat(it.everyMinutes, it.count) },
+)
+
+/** Unknown `kind` decodes to null and is skipped by the caller. */
+private fun RemoteReminder.toDomain(): Reminder? {
+    val repeat = repeat?.let { ReminderRepeat(it.everyMinutes, it.count) }
+    val trigger = when (kind) {
+        "beforeDueTime" -> minutes?.let { ReminderTrigger.BeforeDueTime(it) }
+        "daysBeforeDue" -> {
+            val d = days
+            val t = at.parseOrNull { LocalTime.parse(it) }
+            if (d != null && t != null) ReminderTrigger.DaysBeforeDue(d, t) else null
+        }
+        "at" -> dateTime.parseOrNull { LocalDateTime.parse(it) }?.let { ReminderTrigger.At(it) }
+        else -> null
+    } ?: return null
+    return Reminder(trigger, repeat)
+}
 
 private fun RecurrenceRule.toRemote() = RemoteRecurrence(
     mode = mode.name,

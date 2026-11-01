@@ -39,12 +39,12 @@ data class CadenceSettings(
     /**
      * How long before a task's [de.andi1984.cadence.domain.model.Task.dueTime] this device fires
      * a notification — one per entry, so `[20, 10, 5]` posts three. Independent of
-     * [de.andi1984.cadence.domain.model.Task.reminderTime], which keeps firing at its own exact
-     * moment for a task that sets one instead of, or alongside, a due time.
+     * [de.andi1984.cadence.domain.model.Task.reminders], which fire at their own triggers for a
+     * task that sets them instead of, or alongside, a due time.
      *
      * Empty by default rather than seeded with a preset: a fresh install (or an existing
      * install's tasks that already carry a due time) must not suddenly start notifying for
-     * something nobody asked for. The reminder screen's job is choosing at least one.
+     * something nobody asked for. The task detail's job is choosing the reminders themselves.
      */
     val reminderLeadMinutes: List<Int> = emptyList(),
 )

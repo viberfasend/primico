@@ -6,19 +6,29 @@ import java.time.Instant
 import java.time.ZoneId
 
 /**
- * Identifies one alarm: a task and how long before its due time this one is, `0` for the moment
- * [Task.reminderTime] itself names. A task can carry several alarms at once, one per configured
- * lead, so a bare task id is not enough to name one.
+ * Identifies one alarm: a task and its [slot] — the reminder's packed encoding plus the repeat
+ * index (`d1@09:00#0`), or `lead:N` for a per-device lead counted back from the due time. A task
+ * can carry several alarms at once, so a bare task id is not enough to name one.
+ *
+ * Legacy keys from before slots existed — `0` for the old `reminderTime` moment, a bare positive
+ * number for a lead — are simply never planned any more, so the reconciler cancels them once on
+ * upgrade while the new `lead:N` / `d0@…` slots take over.
  */
-data class ReminderKey(val taskId: String, val leadMinutes: Int)
+data class ReminderKey(val taskId: String, val slot: String)
 
 /** One thing a platform scheduler has to do to bring what it has armed in line with the plan. */
 sealed interface ReminderCommand {
     val key: ReminderKey
 
     /** Schedule [key] to fire at [at] — replacing whatever was armed under it, if anything.
-     *  [task] is the row as it stands, for whatever the notification needs of it (its title). */
-    data class Arm(override val key: ReminderKey, val at: Instant, val task: Task) : ReminderCommand
+     *  [task] is the row as it stands and [source] what the alarm is, for whatever the
+     *  notification needs of them (its title, how to word the content line). */
+    data class Arm(
+        override val key: ReminderKey,
+        val at: Instant,
+        val task: Task,
+        val source: ReminderSource,
+    ) : ReminderCommand
 
     /** Drop [key]: it is armed and nothing plans it any more. */
     data class Cancel(override val key: ReminderKey) : ReminderCommand
@@ -50,9 +60,9 @@ sealed interface ReminderCommand {
  *    That silence is also what keeps the desktop from firing a reminder twice: a fired alarm
  *    stays armed at its instant, the plan keeps naming that instant, and nothing re-arms it.
  *  - An armed key that is **no longer planned** is [Cancel]led — unless its trigger passed less
- *    than [grace] ago, in which case it is [Keep]t (Android's `GRACE_MILLIS` rule). Inside that
- *    window there is no telling a delivered alarm from one still in flight: an exact alarm lands
- *    within seconds, but the inexact fallback may run this late, and cancelling it there took the
+ *    than [grace] ago, in which case it is [Keep]t (Android's grace rule). Inside that window
+ *    there is no telling a delivered alarm from one still in flight: an exact alarm lands within
+ *    seconds, but the inexact fallback may run this late, and cancelling it there took the
  *    notification away unfired — the bug that cost the lead-minutes feature its first release.
  *    The cost of keeping one is the reverse, a late notification for a reminder that was just
  *    cleared or ticked off; that is the smaller harm. A [grace] of zero disables the window, which
@@ -72,19 +82,19 @@ object ReminderReconciler {
         grace: Duration,
         zone: ZoneId = ZoneId.systemDefault(),
     ): List<ReminderCommand> {
-        val planned: Map<ReminderKey, Instant> = if (!enabled) {
+        val planned: Map<ReminderKey, ReminderInstant> = if (!enabled) {
             emptyMap()
         } else {
             ReminderPlanner.plan(tasks, leadMinutes, zone)
-                .associate { ReminderKey(it.taskId, it.leadMinutes) to it.triggerAt }
+                .associateBy { ReminderKey(it.taskId, it.slot) }
         }
         val taskById = tasks.associateBy { it.id }
 
         val commands = ArrayList<ReminderCommand>()
-        planned.forEach { (key, at) ->
-            if (armed[key] != at) {
+        planned.forEach { (key, instant) ->
+            if (armed[key] != instant.triggerAt) {
                 val task = taskById.getValue(key.taskId)
-                commands += ReminderCommand.Arm(key, at, task)
+                commands += ReminderCommand.Arm(key, instant.triggerAt, task, instant.source)
             }
         }
         armed.forEach { (key, at) ->

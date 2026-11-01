@@ -1,6 +1,9 @@
 package de.andi1984.cadence.desktop.data
 
 import de.andi1984.cadence.domain.model.Task
+import de.andi1984.cadence.domain.reminder.Reminder
+import de.andi1984.cadence.domain.reminder.ReminderSource
+import de.andi1984.cadence.domain.reminder.ReminderTrigger
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -9,6 +12,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 
 /**
@@ -19,9 +23,9 @@ import java.time.LocalTime
  * seconds and a task stays due forever once it is — and the reconcile must actually forget the
  * tasks it is no longer given, or a deleted row keeps a reminder that fires for something that
  * does not exist. What to arm, drop or leave alone between two reconciles is `:core`'s
- * `ReminderReconciler`, and the tests about *that* — a lead dropped from Settings, an alarm
- * moved into the future, the same task handed back — live in `ReminderReconcilerTest`; this file
- * is about the poll and the balloon.
+ * `ReminderReconciler`, keyed by slot (`lead:N`, `d1@09:00#0`), and the tests about *that* — a
+ * lead dropped from Settings, an alarm moved into the future, a reminder edited into a new slot —
+ * live in `ReminderReconcilerTest`; this file is about the poll and the balloon.
  *
  * The poll interval is virtual (`StandardTestDispatcher` on `runTest`'s scheduler), but "due" is
  * decided against the wall clock inside the scheduler, so the fixtures are a day either side of
@@ -41,11 +45,21 @@ class DesktopReminderSchedulerTest {
 
     private val fired = mutableListOf<String>()
 
+    /** The balloon wording the shell supplies; here a plain one, so the lead form keeps its
+     *  "title — 10m" shape and everything else fires as the bare title. */
+    private val labelFor: (String, ReminderSource) -> String = { title, source ->
+        when (source) {
+            is ReminderSource.Lead -> if (source.minutes > 0) "$title — ${source.minutes}m" else title
+            is ReminderSource.Entry -> title
+        }
+    }
+
     private fun TestScope.scheduler(): DesktopReminderScheduler =
         DesktopReminderScheduler(
             scope = backgroundScope,
             trayIcon = null,
-            notify = { title -> fired += title },
+            notify = { message -> fired += message },
+            labelFor = labelFor,
         )
 
     /** Reminders are on for every test here: "off" is an empty plan the reconciler answers, and
@@ -59,11 +73,13 @@ class DesktopReminderSchedulerTest {
     /** The next poll, thirty seconds of virtual time later. */
     private fun TestScope.nextPoll() = advanceTimeBy(POLL_INTERVAL_MILLIS + 1)
 
+    private val sameDayNoon = Reminder(ReminderTrigger.DaysBeforeDue(0, LocalTime.NOON))
+
     private fun task(
         id: String,
         title: String = id,
         due: LocalDate?,
-        reminder: LocalTime? = LocalTime.NOON,
+        reminders: List<Reminder> = listOf(sameDayNoon),
         dueTime: LocalTime? = null,
         done: Boolean = false,
     ) = Task(
@@ -71,7 +87,7 @@ class DesktopReminderSchedulerTest {
         title = title,
         dueDate = due,
         dueTime = dueTime,
-        reminderTime = reminder,
+        reminders = reminders,
         completedAt = if (done) Instant.EPOCH else null,
     )
 
@@ -114,10 +130,10 @@ class DesktopReminderSchedulerTest {
     }
 
     @Test
-    fun `a task with no reminder time never fires, due or not`() = runTest {
+    fun `a task with no reminders never fires, due or not`() = runTest {
         val scheduler = scheduler()
 
-        scheduler.sync(listOf(task("a", due = yesterday(), reminder = null)), emptyList())
+        scheduler.sync(listOf(task("a", due = yesterday(), reminders = emptyList())), emptyList())
         poll()
         nextPoll()
 
@@ -193,6 +209,50 @@ class DesktopReminderSchedulerTest {
         assertEquals(listOf("New name"), fired)
     }
 
+    // ── The task's own reminders ─────────────────────────────────────────────────
+
+    @Test
+    fun `a days-before reminder fires on its own slot, ahead of the due day`() = runTest {
+        val scheduler = scheduler()
+        // Due tomorrow, reminder yesterday at noon: already past, so the next poll fires it.
+        val reminder = Reminder(ReminderTrigger.DaysBeforeDue(2, LocalTime.NOON))
+
+        scheduler.sync(listOf(task("a", due = tomorrow(), reminders = listOf(reminder))), emptyList())
+        poll()
+        nextPoll()
+
+        assertEquals(listOf("a"), fired)
+    }
+
+    @Test
+    fun `a fixed-date reminder fires on an undated task`() = runTest {
+        val scheduler = scheduler()
+        val reminder = Reminder(ReminderTrigger.At(LocalDateTime.now().minusMinutes(1)))
+
+        scheduler.sync(listOf(task("a", due = null, reminders = listOf(reminder))), emptyList())
+        poll()
+        nextPoll()
+
+        assertEquals(listOf("a"), fired)
+    }
+
+    @Test
+    fun `editing a reminder moves it to a new slot, the old alarm is gone and the new one fires`() = runTest {
+        val scheduler = scheduler()
+        val before = Reminder(ReminderTrigger.DaysBeforeDue(0, LocalTime.NOON))
+        val after = Reminder(ReminderTrigger.DaysBeforeDue(0, LocalTime.of(13, 0)))
+
+        scheduler.sync(listOf(task("a", due = yesterday(), reminders = listOf(before))), emptyList())
+        // Edited while already due: the old slot is no longer planned (cancelled), the new slot
+        // is armed at 13:00 — still in the past relative to the poll, so it fires once.
+        scheduler.sync(listOf(task("a", due = yesterday(), reminders = listOf(after))), emptyList())
+        poll()
+        nextPoll()
+        nextPoll()
+
+        assertEquals(listOf("a"), fired)
+    }
+
     // ── Lead-time notifications ─────────────────────────────────────────────────────
 
     @Test
@@ -200,7 +260,7 @@ class DesktopReminderSchedulerTest {
         val scheduler = scheduler()
 
         scheduler.sync(
-            listOf(task("a", due = yesterday(), reminder = null, dueTime = LocalTime.NOON)),
+            listOf(task("a", due = yesterday(), reminders = emptyList(), dueTime = LocalTime.NOON)),
             listOf(20, 10),
         )
         poll()
@@ -209,11 +269,11 @@ class DesktopReminderSchedulerTest {
     }
 
     @Test
-    fun `reminderTime and a due-time lead both fire for the same task, independently`() = runTest {
+    fun `a task reminder and a due-time lead both fire for the same task, independently`() = runTest {
         val scheduler = scheduler()
 
         scheduler.sync(
-            listOf(task("a", due = yesterday(), reminder = LocalTime.NOON, dueTime = LocalTime.of(13, 0))),
+            listOf(task("a", due = yesterday(), dueTime = LocalTime.of(13, 0))),
             listOf(10),
         )
         poll()
@@ -226,7 +286,7 @@ class DesktopReminderSchedulerTest {
         val scheduler = scheduler()
 
         scheduler.sync(
-            listOf(task("a", due = yesterday(), reminder = null, dueTime = LocalTime.NOON)),
+            listOf(task("a", due = yesterday(), reminders = emptyList(), dueTime = LocalTime.NOON)),
             emptyList(),
         )
         poll()

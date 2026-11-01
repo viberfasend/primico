@@ -14,6 +14,8 @@ import de.andi1984.cadence.domain.model.Section
 import de.andi1984.cadence.domain.model.Tag
 import de.andi1984.cadence.domain.model.Task
 import de.andi1984.cadence.domain.parse.ParsedQuickAdd
+import de.andi1984.cadence.domain.reminder.Reminder
+import de.andi1984.cadence.domain.reminder.ReminderTrigger
 import de.andi1984.cadence.ui.dnd.DropIntent
 import de.andi1984.cadence.ui.platform.BackupTarget
 import de.andi1984.cadence.ui.platform.PickedFile
@@ -176,14 +178,35 @@ class CadenceViewModelCrudTest {
     }
 
     @Test
-    fun `setReminder updates the task's reminder time`() = runTest {
+    fun `addReminder appends a reminder and collapses an identical one already on the task`() = runTest {
         stores.seedTasks(task("t1"))
         val viewModel = viewModel()
+        val reminder = Reminder(ReminderTrigger.DaysBeforeDue(1, LocalTime.of(9, 0)))
 
-        viewModel.setReminder(task("t1"), LocalTime.of(9, 0))
+        viewModel.addReminder(task("t1"), reminder)
+        runCurrent()
+        viewModel.addReminder(stored("t1"), reminder)
         runCurrent()
 
-        assertEquals(LocalTime.of(9, 0), stored("t1").reminderTime)
+        assertEquals(listOf(reminder), stored("t1").reminders)
+    }
+
+    @Test
+    fun `updateReminder replaces the reminder it was given and removeReminder drops it`() = runTest {
+        stores.seedTasks(task("t1"))
+        val viewModel = viewModel()
+        val first = Reminder(ReminderTrigger.DaysBeforeDue(1, LocalTime.of(9, 0)))
+        val second = Reminder(ReminderTrigger.BeforeDueTime(30))
+        viewModel.addReminder(task("t1"), first)
+        runCurrent()
+
+        viewModel.updateReminder(stored("t1"), first, second)
+        runCurrent()
+        assertEquals(listOf(second), stored("t1").reminders)
+
+        viewModel.removeReminder(stored("t1"), second)
+        runCurrent()
+        assertEquals(emptyList<Reminder>(), stored("t1").reminders)
     }
 
     @Test

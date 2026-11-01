@@ -13,6 +13,11 @@ answers *when* each task should notify, and
 answers *what to change* compared with what is already armed. Each shell's scheduler is left with
 only the platform calls.
 
+A task carries **any number of reminders** (`Task.reminders`), each with its own trigger — minutes
+before the due time, days before the due date at a set time, or a fixed date-time — and an optional
+repeat. They are packed into one column on the task row and synced as one array, not as rows of
+their own: [ADR 0006](../adr/0006-task-reminders.md).
+
 ## The flow
 
 ```mermaid
@@ -37,16 +42,20 @@ removed.
 
 ## When: the planner
 
-For each task that is open and has a due date, `ReminderPlanner.plan` produces
-`ReminderInstant(taskId, leadMinutes, triggerAt)` values from two independent sources:
+For each task that is open, `ReminderPlanner.plan` produces
+`ReminderInstant(taskId, slot, triggerAt, source)` values from two independent sources:
 
 - **`dueTime` × lead minutes.** One instant per positive entry in
-  `CadenceSettings.reminderLeadMinutes`, counted back from the due time. Quick add's "18 Uhr"
-  already fills in `dueTime`, so this list is what turns a typed time into a notification.
-- **`reminderTime`.** The older, manually picked exact-time reminder, independent of `dueTime`.
-  It fires once, reported with lead `0`.
+  `CadenceSettings.reminderLeadMinutes`, counted back from the due time, under the slot
+  `lead:N`. Quick add's "18 Uhr" already fills in `dueTime`, so this list is what turns a typed
+  time into a notification.
+- **The task's own `reminders`.** One instant per entry, per its trigger:
+  `BeforeDueTime` needs the due moment, `DaysBeforeDue` the due date at a wall-clock time (whole
+  days, so it survives a DST change — a minute offset does not), `At` nothing at all, which is why
+  it is also the only kind an undated task can carry. A `repeat` expands into one instant per
+  re-fire, capped at `ReminderPlanner.MAX_NAG` (12).
 
-### Several reminders per task
+### Alarm identity: the slot
 
 `reminderLeadMinutes` is a *list* — Settings → *Notify me before* offers a chip per preset plus a
 custom value — so `[20, 10, 5]` posts three notifications. It is **empty by default**: a fresh
@@ -54,7 +63,11 @@ install, or an upgrade over tasks that already carry due times, must not start n
 something nobody configured.
 
 Because a task can carry several alarms, an alarm's identity is a
-**`ReminderKey(taskId, leadMinutes)`** pair, not a task id.
+**`ReminderKey(taskId, slot)`** pair, not a task id: `lead:N` for a device lead, or the reminder's
+packed encoding plus the repeat index (`d1@09:00#0`) for one of the task's own. The slot is derived
+from the content, so editing a reminder cancels the old key and arms the new one with no stored
+ids; legacy keys (`0`, bare lead numbers) are simply never planned again and are cancelled once on
+upgrade.
 
 ### Why the planner does not filter by "now"
 
@@ -120,17 +133,23 @@ Two more Android details:
   was armed under that key with `ReminderReconciler.retire` — the same grace rule.
 - [`ReminderRequestCodes`](../../app-android/src/main/java/de/andi1984/cadence/reminders/ReminderRequestCodes.kt)
   maps each key to a stable `PendingIntent` request code and persists the armed set with its
-  instants. Lead `0` keeps the bare-task-id code it always had, so upgrading changes nothing for
-  an existing alarm. Cancelling looks up an *existing* code and never mints one, so a task
-  without a time never grows the store. `BootReceiver` re-runs `sync` with the same `enabled`
-  flag after a reboot.
+  instants (`active_slots:`). The legacy slot `0` keeps the bare-task-id code it always had, and
+  the old `active_leads:` entries are still read as those legacy slots — which nothing plans any
+  more, so they are cancelled once on upgrade. Cancelling looks up an *existing* code and never
+  mints one, so a task with nothing armed never grows the store. `BootReceiver` re-runs `sync` with
+  the same `enabled` flag after a reboot.
+- The notification's content line is worded from the trigger at arm time — "Due in 2 days", "Due
+  tomorrow", "Due today", "Overdue" for a days-before reminder, the lead plurals for minutes
+  before the due moment, a plain "Reminder" for a fixed date-time — with the plurals in
+  `res/values` and `res/values-de`.
 
 ## Desktop: a poll and a tray balloon
 
 The desktop has no `AlarmManager`.
 [`DesktopReminderScheduler`](../../app-desktop/src/main/kotlin/de/andi1984/cadence/desktop/data/DesktopReminderScheduler.kt)
-keeps the armed set in memory, polls it every **30 seconds**, and shows a system-tray balloon for
-anything that has come due and has not fired yet. It only works while the app is running — the
+keeps the armed set in memory, keyed by the same slots, polls it every **30 seconds**, and shows a
+system-tray balloon for anything that has come due and has not fired yet, worded the same way the
+Android notification is. It only works while the app is running — the
 same accepted trade-off
 [ADR 0001](../adr/0001-desktop-app-and-multi-device-sync.md#8-desktop-specifics) names for a
 killed Android process.

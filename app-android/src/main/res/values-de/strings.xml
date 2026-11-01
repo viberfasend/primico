@@ -4,9 +4,18 @@
     <string name="reminder_channel_name">Aufgaben-Erinnerungen</string>
     <string name="reminder_channel_description">Erinnerungen für fällige Aufgaben</string>
     <string name="reminder_content_text">Heute fällig</string>
+    <string name="reminder_at_content_text">Erinnerung</string>
     <plurals name="reminder_lead_content_text">
         <item quantity="one">In %1$d Minute</item>
         <item quantity="other">In %1$d Minuten</item>
+    </plurals>
+    <plurals name="reminder_due_in_days">
+        <item quantity="one">Morgen fällig</item>
+        <item quantity="other">In %1$d Tagen fällig</item>
+    </plurals>
+    <plurals name="reminder_overdue">
+        <item quantity="one">1 Tag überfällig</item>
+        <item quantity="other">%1$d Tage überfällig</item>
     </plurals>
 
     <string name="widget_today_title">Heute</string>

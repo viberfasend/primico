@@ -7,6 +7,9 @@ import de.andi1984.cadence.domain.model.RecurrenceMode
 import de.andi1984.cadence.domain.model.RecurrenceRule
 import de.andi1984.cadence.domain.model.RecurrenceUnit
 import de.andi1984.cadence.domain.model.Task
+import de.andi1984.cadence.domain.reminder.Reminder
+import de.andi1984.cadence.domain.reminder.ReminderRepeat
+import de.andi1984.cadence.domain.reminder.ReminderTrigger
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -17,6 +20,7 @@ import org.junit.Test
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 
 /** The wire shape: what leaves the device and what comes back has to be the same record. */
@@ -36,7 +40,13 @@ class RemoteRecordsTest {
             spawnedFromId = "0198f2a0-0000-7000-8000-000000000003",
             dueDate = LocalDate.of(2026, 8, 20),
             dueTime = LocalTime.of(9, 30),
-            reminderTime = LocalTime.of(9, 0),
+            reminders = listOf(
+                Reminder(ReminderTrigger.DaysBeforeDue(0, LocalTime.of(9, 0))),
+                Reminder(
+                    ReminderTrigger.At(LocalDateTime.of(2026, 8, 19, 18, 0)),
+                    ReminderRepeat(15, null),
+                ),
+            ),
             completedAt = now,
             createdAt = now,
             sortOrder = 3,
@@ -197,5 +207,88 @@ class RemoteRecordsTest {
         }
 
         assertTrue("batch keys differ: ${keys.first() - keys.last()}", keys.first() == keys.last())
+    }
+
+    // ── Reminders on the wire ─────────────────────────────────────────────────────
+
+    @Test
+    fun `reminders travel as a jsonb array of tagged objects and the legacy reminder_time is kept`() {
+        val task = Task(
+            id = "t1",
+            title = "Water the plants",
+            dueDate = LocalDate.of(2026, 8, 20),
+            dueTime = LocalTime.of(9, 30),
+            reminders = listOf(
+                Reminder(ReminderTrigger.DaysBeforeDue(0, LocalTime.of(9, 0))),
+                Reminder(ReminderTrigger.DaysBeforeDue(1, LocalTime.of(8, 0))),
+            ),
+            createdAt = now,
+            updatedAt = now,
+        )
+
+        val json = SyncJson.encodeToJsonElement(RemoteTask.serializer(), task.toRemote()) as JsonObject
+
+        val reminders = json["reminders"]
+        assertTrue(reminders.toString(), reminders.toString().contains("\"kind\":\"daysBeforeDue\""))
+        assertTrue(reminders.toString(), reminders.toString().contains("\"days\":1"))
+        // Backward compatibility: an older client still fires the same-day reminder.
+        assertEquals("\"09:00\"", json["reminder_time"].toString())
+    }
+
+    @Test
+    fun `a row pushed by an old client, with only reminder_time, maps to a same-day reminder`() {
+        val wire = RemoteTask(
+            id = "t1",
+            title = "Water the plants",
+            dueDate = "2026-08-20",
+            reminderTime = "09:00",
+            createdAt = now.toString(),
+            updatedAt = now.toString(),
+        )
+
+        assertEquals(
+            listOf(Reminder(ReminderTrigger.DaysBeforeDue(0, LocalTime.of(9, 0)))),
+            wire.toDomain().reminders,
+        )
+    }
+
+    @Test
+    fun `an unknown reminder kind on the wire is skipped, the rest survive`() {
+        val wire = RemoteTask(
+            id = "t1",
+            title = "Water the plants",
+            reminders = listOf(
+                RemoteReminder(kind = "location"),
+                RemoteReminder(kind = "beforeDueTime", minutes = 30),
+            ),
+            createdAt = now.toString(),
+            updatedAt = now.toString(),
+        )
+
+        assertEquals(
+            listOf(Reminder(ReminderTrigger.BeforeDueTime(30))),
+            wire.toDomain().reminders,
+        )
+    }
+
+    @Test
+    fun `a repeat travels inside its reminder object`() {
+        val task = Task(
+            id = "t1",
+            title = "Water the plants",
+            reminders = listOf(
+                Reminder(
+                    ReminderTrigger.DaysBeforeDue(0, LocalTime.of(9, 0)),
+                    ReminderRepeat(10, 3),
+                ),
+            ),
+            createdAt = now,
+            updatedAt = now,
+        )
+
+        val json = SyncJson.encodeToJsonElement(RemoteTask.serializer(), task.toRemote()).toString()
+
+        assertTrue(json, json.contains("\"repeat\":{\"every_minutes\":10,\"count\":3}"))
+        assertEquals(task.reminders, task.toRemote().toDomain().reminders)
     }
 }

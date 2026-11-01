@@ -44,7 +44,11 @@ CREATE TABLE taskRow (
     -- The tags on this task, packed comma-separated by `TagIdsCodec`, or null for none. A
     -- packed column rather than a join table on purpose — see the note on `Task.tagIds`.
     -- Appended after `sectionId` because `4.sqm` adds it the only way SQLite can.
-    tagIds TEXT
+    tagIds TEXT,
+    -- The reminders on this task, packed by `ReminderCodec` (`v1;d1@09:00|…`), empty string for
+    -- none. A packed column rather than a table of its own, the same reasoning as `tagIds`
+    -- (ADR 0006). Appended after `tagIds` because `5.sqm` adds it the only way SQLite can.
+    reminders TEXT NOT NULL DEFAULT ''
 );
 
 CREATE INDEX idx_task_project ON taskRow(projectId);
@@ -90,7 +94,7 @@ UPDATE taskRow SET title = :title, notes = :notes, priority = :priority, project
     dueDate = :dueDate, dueTime = :dueTime,
     reminderTime = :reminderTime, completedAt = :completedAt, createdAt = :createdAt,
     sortOrder = :sortOrder, recurrence = :recurrence, updatedAt = :updatedAt,
-    deletedAt = :deletedAt
+    deletedAt = :deletedAt, reminders = :reminders
 WHERE id = :id;
 
 -- The merge's half of the pair: last writer wins, decided in SQL rather than by reading the row
@@ -102,7 +106,7 @@ UPDATE taskRow SET title = :title, notes = :notes, priority = :priority, project
     dueDate = :dueDate, dueTime = :dueTime,
     reminderTime = :reminderTime, completedAt = :completedAt, createdAt = :createdAt,
     sortOrder = :sortOrder, recurrence = :recurrence, updatedAt = :updatedAt,
-    deletedAt = :deletedAt
+    deletedAt = :deletedAt, reminders = :reminders
 WHERE id = :id AND updatedAt < :updatedAt;
 
 -- Importing a file only: an incoming record lands on a row this device has tombstoned, and the
@@ -115,7 +119,8 @@ UPDATE taskRow SET title = :title, notes = :notes, priority = :priority, project
     spawnedFromId = :spawnedFromId,
     dueDate = :dueDate, dueTime = :dueTime,
     reminderTime = :reminderTime, completedAt = :completedAt, createdAt = :createdAt,
-    sortOrder = :sortOrder, recurrence = :recurrence, updatedAt = :revivedAt, deletedAt = NULL
+    sortOrder = :sortOrder, recurrence = :recurrence, updatedAt = :revivedAt, deletedAt = NULL,
+    reminders = :reminders
 WHERE id = :id AND deletedAt IS NOT NULL;
 
 -- `VALUES ?` binds the generated `TaskRow` whole, so the column list is the table's own and

@@ -1,9 +1,12 @@
 package de.andi1984.cadence
 
 import de.andi1984.cadence.domain.model.Task
+import de.andi1984.cadence.domain.reminder.Reminder
 import de.andi1984.cadence.domain.reminder.ReminderCommand
 import de.andi1984.cadence.domain.reminder.ReminderKey
 import de.andi1984.cadence.domain.reminder.ReminderReconciler
+import de.andi1984.cadence.domain.reminder.ReminderSource
+import de.andi1984.cadence.domain.reminder.ReminderTrigger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -21,6 +24,9 @@ import java.time.ZoneOffset
  * diff rather than the poll moved here with them.
  *
  * Times are UTC and `now` is fixed, so "in the future", "just passed" and "long past" are exact.
+ * Alarms are keyed by slot now (`lead:N` for device leads, the reminder's encoding plus the repeat
+ * index for the task's own), and a legacy key — `0` or a bare lead number — is simply never planned,
+ * so it is cancelled once on upgrade.
  */
 class ReminderReconcilerTest {
 
@@ -37,16 +43,18 @@ class ReminderReconcilerTest {
         title: String = id,
         due: LocalDate? = today,
         dueTime: LocalTime? = null,
-        reminderTime: LocalTime? = null,
+        reminders: List<Reminder> = emptyList(),
         done: Boolean = false,
     ) = Task(
         id = id,
         title = title,
         dueDate = due,
         dueTime = dueTime,
-        reminderTime = reminderTime,
+        reminders = reminders,
         completedAt = if (done) Instant.EPOCH else null,
     )
+
+    private val sameDay = Reminder(ReminderTrigger.DaysBeforeDue(0, LocalTime.of(18, 0)))
 
     private fun reconcile(
         armed: Map<ReminderKey, Instant>,
@@ -59,27 +67,34 @@ class ReminderReconcilerTest {
     // ── Arming ───────────────────────────────────────────────────────────────────────
 
     @Test
-    fun `a planned alarm nothing has armed is armed, with the task it belongs to`() {
-        val task = task(title = "Water the plants", reminderTime = LocalTime.of(18, 0))
+    fun `a planned alarm nothing has armed is armed, with the task and source it belongs to`() {
+        val task = task(title = "Water the plants", reminders = listOf(sameDay))
 
         val commands = reconcile(armed = emptyMap(), tasks = listOf(task))
 
         assertEquals(
-            listOf(ReminderCommand.Arm(ReminderKey("a", 0), at(LocalTime.of(18, 0)), task)),
+            listOf(
+                ReminderCommand.Arm(
+                    ReminderKey("a", "d0@18:00#0"),
+                    at(LocalTime.of(18, 0)),
+                    task,
+                    ReminderSource.Entry(sameDay, 0),
+                ),
+            ),
             commands,
         )
     }
 
     @Test
-    fun `one alarm per configured lead, each armed on its own`() {
+    fun `one alarm per configured lead, each armed on its own as lead slots`() {
         val task = task(dueTime = LocalTime.of(18, 0))
 
         val commands = reconcile(armed = emptyMap(), tasks = listOf(task), leadMinutes = listOf(20, 10))
 
         assertEquals(
             setOf(
-                ReminderCommand.Arm(ReminderKey("a", 20), at(LocalTime.of(17, 40)), task),
-                ReminderCommand.Arm(ReminderKey("a", 10), at(LocalTime.of(17, 50)), task),
+                ReminderCommand.Arm(ReminderKey("a", "lead:20"), at(LocalTime.of(17, 40)), task, ReminderSource.Lead(20)),
+                ReminderCommand.Arm(ReminderKey("a", "lead:10"), at(LocalTime.of(17, 50)), task, ReminderSource.Lead(10)),
             ),
             commands.toSet(),
         )
@@ -89,37 +104,93 @@ class ReminderReconcilerTest {
     fun `a planned instant already in the past is still armed — what that means is the platform's`() {
         // The desktop fires it on the next poll (the reminder elapsed while the app was closed);
         // Android drops it, since AlarmManager cannot fire retroactively. Neither is decided here.
-        val task = task(due = today.minusDays(1), reminderTime = LocalTime.NOON)
+        val task = task(due = today.minusDays(1), reminders = listOf(sameDay))
 
         val commands = reconcile(armed = emptyMap(), tasks = listOf(task))
 
         assertEquals(
-            listOf(ReminderCommand.Arm(ReminderKey("a", 0), at(LocalTime.NOON, today.minusDays(1)), task)),
+            listOf(
+                ReminderCommand.Arm(
+                    ReminderKey("a", "d0@18:00#0"),
+                    at(LocalTime.of(18, 0), today.minusDays(1)),
+                    task,
+                    ReminderSource.Entry(sameDay, 0),
+                ),
+            ),
             commands,
         )
     }
 
     @Test
     fun `an alarm moved into the future is re-armed at its new instant`() {
-        // Snoozed: the same alarm, now due tomorrow. An adapter that marked the old instant as
+        // Snoozed: the same reminder, now due tomorrow. An adapter that marked the old instant as
         // fired has to be told, or the reminder is suppressed forever by a decision made about a
         // time that no longer applies.
-        val key = ReminderKey("a", 0)
-        val task = task(due = today.plusDays(1), reminderTime = LocalTime.NOON)
+        val key = ReminderKey("a", "d0@12:00#0")
+        val moved = Reminder(ReminderTrigger.DaysBeforeDue(0, LocalTime.NOON))
+        val task = task(due = today.plusDays(1), reminders = listOf(moved))
 
         val commands = reconcile(
             armed = mapOf(key to at(LocalTime.NOON, today.minusDays(1))),
             tasks = listOf(task),
         )
 
-        assertEquals(listOf(ReminderCommand.Arm(key, at(LocalTime.NOON, today.plusDays(1)), task)), commands)
+        assertEquals(
+            listOf(ReminderCommand.Arm(key, at(LocalTime.NOON, today.plusDays(1)), task, ReminderSource.Entry(moved, 0))),
+            commands,
+        )
+    }
+
+    @Test
+    fun `editing a reminder cancels the old slot and arms the new one, no stored ids needed`() {
+        // The slot is derived from the reminder's content, so a changed time is a different key:
+        // the old alarm is "no longer planned" and the new one is armed.
+        val oldKey = ReminderKey("a", "d0@09:00#0")
+        val edited = Reminder(ReminderTrigger.DaysBeforeDue(0, LocalTime.of(10, 0)))
+        val task = task(reminders = listOf(edited))
+
+        val commands = reconcile(
+            armed = mapOf(oldKey to at(LocalTime.of(9, 0))),
+            tasks = listOf(task),
+        )
+
+        assertEquals(
+            setOf(
+                ReminderCommand.Cancel(oldKey),
+                ReminderCommand.Arm(
+                    ReminderKey("a", "d0@10:00#0"),
+                    at(LocalTime.of(10, 0)),
+                    task,
+                    ReminderSource.Entry(edited, 0),
+                ),
+            ),
+            commands.toSet(),
+        )
+    }
+
+    @Test
+    fun `a legacy key from before slots is never planned and is cancelled once on upgrade`() {
+        // `0` was the old reminderTime moment, a bare positive number a lead; both are read from
+        // the pre-slot armed record and neither slot is planned any more.
+        val legacy = mapOf(
+            ReminderKey("a", "0") to at(LocalTime.of(9, 0)),
+            ReminderKey("a", "20") to at(LocalTime.of(17, 40)),
+        )
+        val task = task(dueTime = LocalTime.of(18, 0))
+
+        val commands = reconcile(armed = legacy, tasks = listOf(task), leadMinutes = listOf(20))
+
+        assertTrue(ReminderCommand.Cancel(ReminderKey("a", "0")) in commands)
+        assertTrue(ReminderCommand.Cancel(ReminderKey("a", "20")) in commands)
+        // …while the same lead under its new slot is armed.
+        assertTrue(commands.any { it is ReminderCommand.Arm && it.key == ReminderKey("a", "lead:20") })
     }
 
     @Test
     fun `the same input twice changes nothing`() {
         // Every task emission reconciles, so this is the ordinary case, not a corner one — and it
         // is what keeps an alarm that already fired from being armed, and fired, a second time.
-        val task = task(due = today.minusDays(1), reminderTime = LocalTime.NOON)
+        val task = task(due = today.minusDays(1), reminders = listOf(sameDay))
         val first = reconcile(armed = emptyMap(), tasks = listOf(task))
         val armed = first.filterIsInstance<ReminderCommand.Arm>().associate { it.key to it.at }
 
@@ -130,8 +201,8 @@ class ReminderReconcilerTest {
 
     @Test
     fun `a title edit alone issues no command`() {
-        val key = ReminderKey("a", 0)
-        val renamed = task(title = "New name", reminderTime = LocalTime.of(18, 0))
+        val key = ReminderKey("a", "d0@18:00#0")
+        val renamed = task(title = "New name", reminders = listOf(sameDay))
 
         val commands = reconcile(armed = mapOf(key to at(LocalTime.of(18, 0))), tasks = listOf(renamed))
 
@@ -144,21 +215,21 @@ class ReminderReconcilerTest {
     fun `a lead dropped from the settings list is cancelled`() {
         val task = task(dueTime = LocalTime.of(18, 0))
         val armed = mapOf(
-            ReminderKey("a", 20) to at(LocalTime.of(17, 40)),
-            ReminderKey("a", 10) to at(LocalTime.of(17, 50)),
+            ReminderKey("a", "lead:20") to at(LocalTime.of(17, 40)),
+            ReminderKey("a", "lead:10") to at(LocalTime.of(17, 50)),
         )
 
         val commands = reconcile(armed = armed, tasks = listOf(task), leadMinutes = listOf(10))
 
-        assertEquals(listOf(ReminderCommand.Cancel(ReminderKey("a", 20))), commands)
+        assertEquals(listOf(ReminderCommand.Cancel(ReminderKey("a", "lead:20"))), commands)
     }
 
     @Test
-    fun `a task no longer listed has every lead cancelled`() {
+    fun `a task no longer listed has every slot cancelled`() {
         val armed = mapOf(
-            ReminderKey("a", 20) to at(LocalTime.of(17, 40)),
-            ReminderKey("a", 10) to at(LocalTime.of(17, 50)),
-            ReminderKey("a", 0) to at(LocalTime.of(18, 0)),
+            ReminderKey("a", "lead:20") to at(LocalTime.of(17, 40)),
+            ReminderKey("a", "lead:10") to at(LocalTime.of(17, 50)),
+            ReminderKey("a", "d0@18:00#0") to at(LocalTime.of(18, 0)),
         )
 
         val commands = reconcile(armed = armed, tasks = emptyList(), leadMinutes = listOf(20, 10))
@@ -167,9 +238,9 @@ class ReminderReconcilerTest {
     }
 
     @Test
-    fun `a finished task has its alarm cancelled`() {
-        val key = ReminderKey("a", 0)
-        val done = task(reminderTime = LocalTime.of(18, 0), done = true)
+    fun `a finished task has its alarms cancelled`() {
+        val key = ReminderKey("a", "d0@18:00#0")
+        val done = task(reminders = listOf(sameDay), done = true)
 
         val commands = reconcile(armed = mapOf(key to at(LocalTime.of(18, 0))), tasks = listOf(done))
 
@@ -180,7 +251,7 @@ class ReminderReconcilerTest {
     fun `an alarm still in the future that nothing plans any more is cancelled, grace or not`() {
         // It has not fired, so there is no delivery in flight to protect — and left alone it
         // would fire for a reminder that was cleared.
-        val key = ReminderKey("a", 0)
+        val key = ReminderKey("a", "d0@18:00#0")
 
         val commands = reconcile(armed = mapOf(key to at(LocalTime.of(18, 0))), tasks = emptyList())
 
@@ -191,10 +262,13 @@ class ReminderReconcilerTest {
 
     @Test
     fun `reminders off cancels everything armed and strips nothing off the tasks`() {
-        val task = task(dueTime = LocalTime.of(18, 0), reminderTime = LocalTime.of(9, 0))
+        val task = task(
+            dueTime = LocalTime.of(18, 0),
+            reminders = listOf(Reminder(ReminderTrigger.DaysBeforeDue(0, LocalTime.of(9, 0)))),
+        )
         val armed = mapOf(
-            ReminderKey("a", 10) to at(LocalTime.of(17, 50)),
-            ReminderKey("a", 0) to at(LocalTime.of(9, 0), today.minusDays(3)),
+            ReminderKey("a", "lead:10") to at(LocalTime.of(17, 50)),
+            ReminderKey("a", "d0@09:00#0") to at(LocalTime.of(9, 0), today.minusDays(3)),
         )
 
         val commands = reconcile(armed = armed, tasks = listOf(task), leadMinutes = listOf(10), enabled = false)
@@ -202,7 +276,7 @@ class ReminderReconcilerTest {
         // An empty plan, not an empty task list: both alarms — one ahead, one long past — go.
         assertEquals(armed.keys.map { ReminderCommand.Cancel(it) }.toSet(), commands.toSet())
         assertEquals(LocalTime.of(18, 0), task.dueTime)
-        assertEquals(LocalTime.of(9, 0), task.reminderTime)
+        assertEquals(1, task.reminders.size)
     }
 
     @Test
@@ -220,7 +294,7 @@ class ReminderReconcilerTest {
     fun `an unplanned alarm whose trigger passed less than the grace ago is kept, not cancelled`() {
         // Inside the window a delivered alarm cannot be told from one the inexact fallback is
         // still carrying, and cancelling the latter took the notification away unfired.
-        val key = ReminderKey("a", 0)
+        val key = ReminderKey("a", "d0@18:00#0")
 
         val commands = reconcile(armed = mapOf(key to now.minus(Duration.ofMinutes(3))), tasks = emptyList())
 
@@ -229,7 +303,7 @@ class ReminderReconcilerTest {
 
     @Test
     fun `an unplanned alarm whose trigger passed longer than the grace ago is cancelled`() {
-        val key = ReminderKey("a", 0)
+        val key = ReminderKey("a", "d0@18:00#0")
 
         val commands = reconcile(armed = mapOf(key to now.minus(Duration.ofMinutes(10))), tasks = emptyList())
 
@@ -239,7 +313,7 @@ class ReminderReconcilerTest {
     @Test
     fun `a zero grace cancels an unplanned alarm the moment its trigger has passed`() {
         // The desktop's setting: a poll has no delivery latency to wait out.
-        val key = ReminderKey("a", 0)
+        val key = ReminderKey("a", "d0@18:00#0")
 
         val commands = reconcile(
             armed = mapOf(key to now.minusSeconds(1)),
@@ -254,7 +328,7 @@ class ReminderReconcilerTest {
     fun `retire is the same rule an adapter applies to an Arm it cannot honour`() {
         // Android drops an Arm naming a past instant and settles what it had armed under that key
         // with `retire`: a trigger just passed is kept, one long past or still ahead is cancelled.
-        val key = ReminderKey("a", 0)
+        val key = ReminderKey("a", "d0@18:00#0")
 
         assertEquals(ReminderCommand.Keep(key), ReminderReconciler.retire(key, now.minusSeconds(30), now, grace))
         assertEquals(ReminderCommand.Cancel(key), ReminderReconciler.retire(key, now.minus(grace), now, grace))
@@ -263,13 +337,13 @@ class ReminderReconcilerTest {
 
     @Test
     fun `a planned alarm inside the grace window at a new instant is re-armed, not kept`() {
-        // The grace protects an alarm nothing plans any more. One the plan moved — a due time
+        // The grace protects an alarm nothing plans any more. One the plan moved — a reminder time
         // edited a moment ago — is a different instant, and the adapter is told so; whether it
         // can honour a past one is its call.
-        val key = ReminderKey("a", 0)
-        val moved = task(reminderTime = LocalTime.of(11, 57))
+        val key = ReminderKey("a", "d0@11:57#0")
+        val moved = Reminder(ReminderTrigger.DaysBeforeDue(0, LocalTime.of(11, 57)))
 
-        val commands = reconcile(armed = mapOf(key to at(LocalTime.of(11, 55))), tasks = listOf(moved))
+        val commands = reconcile(armed = mapOf(key to at(LocalTime.of(11, 55))), tasks = listOf(task(reminders = listOf(moved))))
 
         assertTrue(commands.single() is ReminderCommand.Arm)
         assertEquals(at(LocalTime.of(11, 57)), (commands.single() as ReminderCommand.Arm).at)

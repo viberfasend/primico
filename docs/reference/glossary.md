@@ -129,8 +129,9 @@ greater `updatedAt` wins whole; ties keep what is stored; a tombstone competes l
 ### Lead minutes
 
 `CadenceSettings.reminderLeadMinutes`: per device, "notify me this many minutes
-before a task's `dueTime`", one notification per entry. A task's own `reminderTime` fires as
-lead `0`.
+before a task's `dueTime`", one notification per entry, armed under the slot `lead:N`. The task's
+own `reminders` fire alongside, under their own slots. See [Reminders](../concepts/reminders.md)
+and ADR 0006.
 
 ### Local write
 
@@ -170,7 +171,8 @@ due date second, and it is never shown by colour alone. See [Data model](data-mo
 
 What a reminder scheduler does on every task emission: `ReminderReconciler`
 diffs what is armed against what `ReminderPlanner` plans and answers `Arm`, `Cancel` or `Keep`
-per (task, lead) key.
+per (task, slot) key — `lead:N` for a device lead, the reminder's encoding plus the repeat index
+(`d1@09:00#0`) for one of the task's own.
 
 ### Revival
 

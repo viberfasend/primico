@@ -13,6 +13,9 @@ import de.andi1984.cadence.domain.model.RecurrenceUnit
 import de.andi1984.cadence.domain.model.Section
 import de.andi1984.cadence.domain.model.Tag
 import de.andi1984.cadence.domain.model.Task
+import de.andi1984.cadence.domain.reminder.Reminder
+import de.andi1984.cadence.domain.reminder.ReminderPlanner
+import de.andi1984.cadence.domain.reminder.ReminderTrigger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -28,6 +31,8 @@ import java.io.ByteArrayInputStream
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneOffset
 
 /**
@@ -138,6 +143,69 @@ class CadenceRepositoryTest {
         due: LocalDate? = LocalDate.of(2026, 8, 7),
         priority: Priority = Priority.DEFAULT,
     ) = Task(title = "Rat poison", priority = priority, dueDate = due, recurrence = fortnightly)
+
+    // ── Reminders on recurrence and snooze ──────────────────────────────────────
+
+    @Test
+    fun `completing a recurring task carries relative reminders over and shifts At by the due span`() = runTest {
+        val relative = Reminder(ReminderTrigger.DaysBeforeDue(1, LocalTime.of(9, 0)))
+        val fixedFuture = Reminder(ReminderTrigger.At(LocalDateTime.of(2026, 8, 10, 9, 0)))
+        // Already in the past at the fixed clock (2026-08-07T12:00Z), and 14 days forward does not
+        // rescue it: an `At` that is past after the shift is dropped, not carried.
+        val fixedPast = Reminder(ReminderTrigger.At(LocalDateTime.of(2026, 7, 1, 9, 0)))
+        val task = store(
+            Task(
+                title = "Rat poison",
+                dueDate = LocalDate.of(2026, 8, 7),
+                recurrence = fortnightly,
+                reminders = listOf(relative, fixedFuture, fixedPast),
+            ),
+        )
+
+        repository.setCompleted(task, true)
+
+        val next = rowsTitled("Rat poison").single { !it.isDone }
+        // Fortnightly from 2026-08-07: the successor is due 2026-08-21, a 14-day shift.
+        assertEquals(LocalDate.of(2026, 8, 21), next.dueDate)
+        assertEquals(
+            listOf(
+                relative,
+                fixedFuture.copy(trigger = ReminderTrigger.At(LocalDateTime.of(2026, 8, 24, 9, 0))),
+            ),
+            next.reminders,
+        )
+    }
+
+    @Test
+    fun `snoozing moves a relative reminder with the due date and leaves a fixed one alone`() = runTest {
+        val relative = Reminder(ReminderTrigger.DaysBeforeDue(1, LocalTime.of(9, 0)))
+        val fixed = Reminder(ReminderTrigger.At(LocalDateTime.of(2026, 8, 10, 9, 0)))
+        val task = store(
+            Task(
+                title = "Dentist",
+                dueDate = LocalDate.of(2026, 8, 8),
+                dueTime = LocalTime.of(10, 0),
+                reminders = listOf(relative, fixed),
+            ),
+        )
+
+        repository.shiftDueDate(task, 1)
+
+        val snoozed = taskRow(task.id)
+        assertEquals(LocalDate.of(2026, 8, 9), snoozed.dueDate)
+        // The stored list is untouched — a relative trigger follows the due date at plan time —
+        // so what moved is the planned instant, and only for the relative one.
+        assertEquals(listOf(relative, fixed), snoozed.reminders)
+        val plan = ReminderPlanner.plan(listOf(snoozed), emptyList(), ZoneOffset.UTC).associateBy { it.slot }
+        assertEquals(
+            LocalDate.of(2026, 8, 8).atTime(LocalTime.of(9, 0)).toInstant(ZoneOffset.UTC),
+            plan.getValue("d1@09:00#0").triggerAt,
+        )
+        assertEquals(
+            LocalDateTime.of(2026, 8, 10, 9, 0).toInstant(ZoneOffset.UTC),
+            plan.getValue("t2026-08-10T09:00#0").triggerAt,
+        )
+    }
 
     @Test
     fun `completing a recurring task leaves the finished row and one successor`() = runTest {

@@ -1,12 +1,15 @@
 package de.andi1984.cadence.ui
 
 import de.andi1984.cadence.data.StoreTransaction
+import de.andi1984.cadence.data.TaskBatchAction
 import de.andi1984.cadence.data.TransactionScope
 import de.andi1984.cadence.data.sync.CadenceSyncEngine
 import de.andi1984.cadence.domain.model.Project
 import de.andi1984.cadence.domain.model.Task
 import de.andi1984.cadence.domain.reminder.Reminder
 import de.andi1984.cadence.domain.reminder.ReminderTrigger
+import de.andi1984.cadence.ui.resources.Res
+import de.andi1984.cadence.ui.resources.batch_tasks_completed
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -414,6 +417,68 @@ class CadenceViewModelUndoTest {
 
         assertEquals(emptySet<String>(), liveTaskIds())
     }
+    // ── Batch actions (#40) ─────────────────────────────────────────────────────────
+
+    @Test
+    fun `a batch delete hides the whole set at once and one undo brings every row back`() = runTest {
+        stores.seedTasks(task("a"), task("b"), task("step", parentId = "a"), task("other"))
+        val viewModel = viewModel()
+
+        viewModel.applyToTasks(setOf("a", "b"), TaskBatchAction.Delete)
+        runCurrent()
+
+        // Hidden immediately — both roots and the step — while the database still holds them.
+        assertEquals(setOf("a", "b", "step"), viewModel.state.value.pendingDeleteIds)
+        assertEquals(listOf("other"), viewModel.state.value.tasks.map { it.id })
+        assertEquals(setOf("a", "b", "step", "other"), liveTaskIds())
+
+        viewModel.undo()
+        runCurrent()
+
+        assertTrue(viewModel.state.value.pendingDeleteIds.isEmpty())
+        assertEquals(setOf("a", "b", "step", "other"), viewModel.state.value.tasks.map { it.id }.toSet())
+        assertEquals(setOf("a", "b", "step", "other"), liveTaskIds())
+    }
+
+    @Test
+    fun `committing a batch delete tombstones every row and cancels every alarm in one write`() = runTest {
+        stores.seedTasks(
+            task("a", due = LocalDate.of(2026, 8, 17)),
+            task("b", due = LocalDate.of(2026, 8, 18)),
+            task("step", parentId = "a"),
+        )
+        val viewModel = viewModel()
+
+        viewModel.applyToTasks(setOf("a", "b"), TaskBatchAction.Delete)
+        runCurrent()
+        assertTrue(reminders.cancelled.isEmpty())
+        assertEquals(setOf("a", "b", "step"), liveTaskIds())
+
+        advanceTimeBy(CadenceViewModel.UNDO_WINDOW.toMillis() + 1)
+        runCurrent()
+
+        assertTrue(liveTaskIds().isEmpty())
+        assertEquals(setOf("a", "b", "step"), reminders.cancelled.toSet())
+    }
+
+    @Test
+    fun `a batch complete lands immediately and the snackbar counts the set without an undo`() = runTest {
+        stores.seedTasks(task("a"), task("b"), task("c"))
+        val viewModel = viewModel()
+
+        viewModel.applyToTasks(setOf("a", "b"), TaskBatchAction.Complete)
+        runCurrent()
+
+        assertEquals(
+            setOf("a", "b"),
+            stores.taskStore.getAll().filter { it.isDone }.map { it.id }.toSet(),
+        )
+        val snack = viewModel.state.value.snackbarMessage as SnackbarMessage.Counted
+        assertEquals(Res.plurals.batch_tasks_completed, snack.plural)
+        assertEquals(2, snack.count)
+        assertNull(snack.undoAction)
+    }
+
 }
 
 /**

@@ -37,7 +37,7 @@ import de.andi1984.cadence.ui.CadenceUiState
 import de.andi1984.cadence.ui.components.AppIcons
 import de.andi1984.cadence.ui.components.EmptyState
 import de.andi1984.cadence.ui.components.quickAddHint
-import de.andi1984.cadence.ui.components.ScreenHeader
+import de.andi1984.cadence.ui.components.TaskListHeader
 import de.andi1984.cadence.ui.components.SyncActions
 import de.andi1984.cadence.ui.components.SyncControls
 import de.andi1984.cadence.ui.components.SyncRefreshBox
@@ -66,7 +66,7 @@ fun InboxScreen(
     val completedCount = state.completedInboxTasks().size
 
     Column(modifier = Modifier.fillMaxSize()) {
-        ScreenHeader(
+        TaskListHeader(
             title = stringResource(Res.string.inbox_title),
             subtitle = if (open == 0) {
                 stringResource(Res.string.inbox_empty_subtitle)

@@ -167,7 +167,18 @@ fun main() = application {
                 }
 
                 ShortcutAction.Undo -> { viewModel.undo(); true }
-                ShortcutAction.Back, ShortcutAction.Close -> { navigator.back(); true }
+                ShortcutAction.Back -> { navigator.back(); true }
+                // Esc leaves selection mode first (#40); only with nothing selected does it
+                // navigate back.
+                ShortcutAction.Close -> {
+                    if (selection.isSelecting) {
+                        selection.clearSelection()
+                        true
+                    } else {
+                        navigator.back()
+                        true
+                    }
+                }
                 ShortcutAction.Forward -> { navigator.forward(); true }
                 ShortcutAction.GoToday -> { navigator.switchTo(Route.Today); true }
                 ShortcutAction.GoUpcoming -> { navigator.switchTo(Route.Upcoming); true }
@@ -178,6 +189,7 @@ fun main() = application {
                 // selection is a row that was on screen, and a pull may have deleted it since.
                 ShortcutAction.SelectNext -> { selection.moveBy(1); true }
                 ShortcutAction.SelectPrevious -> { selection.moveBy(-1); true }
+                ShortcutAction.SelectAll -> { selection.selectAllVisible(); true }
                 ShortcutAction.OpenSelected -> selection.withTask(state) {
                     navigator.go(Route.TaskDetail(it.id))
                 }

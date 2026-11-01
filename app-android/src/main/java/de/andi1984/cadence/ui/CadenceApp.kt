@@ -17,10 +17,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -34,6 +35,10 @@ import androidx.navigation.compose.rememberNavController
 import de.andi1984.cadence.ui.attachments.rememberSafAttachmentFilePicker
 import de.andi1984.cadence.ui.backup.rememberSafBackupFilePicker
 import de.andi1984.cadence.ui.components.AppIcons
+import de.andi1984.cadence.ui.components.LocalRowInteractions
+import de.andi1984.cadence.ui.components.LocalRowSelection
+import de.andi1984.cadence.ui.components.RowInteractions
+import de.andi1984.cadence.ui.components.RowSelectionState
 import de.andi1984.cadence.ui.components.FittedLabel
 import de.andi1984.cadence.ui.components.SyncControls
 import de.andi1984.cadence.ui.components.SyncFailureSnackbar
@@ -173,6 +178,22 @@ fun CadenceApp(
         onDismiss = viewModel::dismissSnackbar,
     )
 
+    // Long-press on a row enters selection mode (#40); the shell provides the state and the
+    // batch dispatch even though it draws no row menus or drag gestures of its own.
+    val selection = remember { RowSelectionState() }
+    val rowInteractions = remember(viewModel, state, today) {
+        RowInteractions(
+            enabled = false,
+            state = state,
+            today = today,
+            onBatchAction = { ids, action -> viewModel.applyToTasks(ids.toSet(), action) },
+        )
+    }
+
+    CompositionLocalProvider(
+        LocalRowSelection provides selection,
+        LocalRowInteractions provides rowInteractions,
+    ) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
@@ -398,6 +419,7 @@ fun CadenceApp(
                 }
             }
         }
+    }
     }
 
     if (quickAddOpen) {

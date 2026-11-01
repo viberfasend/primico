@@ -36,6 +36,18 @@ sealed class UndoAction {
         override val ids: Set<String> = (taskIds + subtaskIds).toSet()
     }
 
+    /**
+     * A multi-select delete (#40): every root the bar acted on, plus its steps. One batch entry
+     * rather than one slot per row — the snackbar counts the whole set ("12 tasks deleted") and
+     * undo brings back exactly these ids, because the batch is one deferred write.
+     */
+    data class DeleteTasks(
+        val tasks: List<Task>,
+        val subtaskIds: List<String>,
+    ) : UndoAction() {
+        override val ids: Set<String> = tasks.map { it.id }.toSet() + subtaskIds
+    }
+
     /** Deleting a project tombstones it and (optionally) its subprojects and tasks. */
     data class DeleteProject(
         val project: Project,

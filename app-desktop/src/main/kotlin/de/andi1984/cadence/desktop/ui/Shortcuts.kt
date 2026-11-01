@@ -69,6 +69,7 @@ enum class ShortcutAction {
     QuickAdd,
     SelectNext,
     SelectPrevious,
+    SelectAll,
     OpenSelected,
     ToggleSelected,
     DeleteSelected,
@@ -154,6 +155,10 @@ private val SELECTION_SHORTCUTS: List<Shortcut> = listOf(
     Shortcut(
         ShortcutAction.SelectPrevious, Key.DirectionUp, Modifiers(), ShortcutGroup.Selection,
         Res.string.shortcut_select_previous, "↑",
+    ),
+    Shortcut(
+        ShortcutAction.SelectAll, Key.A, Modifiers(primary = true), ShortcutGroup.Selection,
+        Res.string.action_select_all, "A",
     ),
     Shortcut(
         ShortcutAction.OpenSelected, Key.Enter, Modifiers(), ShortcutGroup.Selection,

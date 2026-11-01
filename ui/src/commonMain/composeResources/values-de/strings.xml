@@ -599,4 +599,45 @@
     <string name="snackbar_attachment_failed">Die Datei konnte nicht kopiert werden</string>
     <string name="snackbar_attachment_invalid_link">Bitte einen Link eingeben</string>
     <string name="snackbar_attachment_no_viewer">Auf diesem Gerät kann das nichts öffnen</string>
+    <!-- ── Mehrfachauswahl (#40) ─────────────────────────────────────────────────
+         Die Aktionsleiste der Auswahl, die Batch-Snackbars und der Drag-Geist. -->
+    <string name="action_select_all">Alle auswählen</string>
+    <string name="action_clear_selection">Auswahl aufheben</string>
+    <string name="tags_remove_from_task">Label entfernen</string>
+    <plurals name="selection_count">
+        <item quantity="one">1 Aufgabe ausgewählt</item>
+        <item quantity="other">%1$d Aufgaben ausgewählt</item>
+    </plurals>
+    <plurals name="drag_multiple_tasks">
+        <item quantity="one">1 Aufgabe</item>
+        <item quantity="other">%1$d Aufgaben</item>
+    </plurals>
+    <plurals name="batch_tasks_completed">
+        <item quantity="one">1 Aufgabe erledigt</item>
+        <item quantity="other">%1$d Aufgaben erledigt</item>
+    </plurals>
+    <plurals name="batch_tasks_reopened">
+        <item quantity="one">1 Aufgabe wieder geöffnet</item>
+        <item quantity="other">%1$d Aufgaben wieder geöffnet</item>
+    </plurals>
+    <plurals name="batch_tasks_moved">
+        <item quantity="one">1 Aufgabe verschoben</item>
+        <item quantity="other">%1$d Aufgaben verschoben</item>
+    </plurals>
+    <plurals name="batch_tasks_rescheduled">
+        <item quantity="one">1 Aufgabe neu terminiert</item>
+        <item quantity="other">%1$d Aufgaben neu terminiert</item>
+    </plurals>
+    <plurals name="batch_tasks_priority_set">
+        <item quantity="one">Priorität für 1 Aufgabe gesetzt</item>
+        <item quantity="other">Priorität für %1$d Aufgaben gesetzt</item>
+    </plurals>
+    <plurals name="batch_tasks_tag_added">
+        <item quantity="one">Label auf 1 Aufgabe gesetzt</item>
+        <item quantity="other">Label auf %1$d Aufgaben gesetzt</item>
+    </plurals>
+    <plurals name="batch_tasks_tag_removed">
+        <item quantity="one">Label von 1 Aufgabe entfernt</item>
+        <item quantity="other">Label von %1$d Aufgaben entfernt</item>
+    </plurals>
 </resources>

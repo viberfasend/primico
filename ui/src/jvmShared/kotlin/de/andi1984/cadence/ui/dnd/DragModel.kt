@@ -28,8 +28,18 @@ sealed interface DragPayload {
     /** The row being dragged, for the "you cannot drop something on itself" rule. */
     val id: String
 
-    data class TaskDrag(val task: Task) : DragPayload {
-        override val id: String get() = task.id
+    /**
+     * The rows being dragged: one normally, the whole selection when the drag started on a
+     * selected row (#40). [tasks] keeps the payload's order — the order the rows were drawn in —
+     * so a drop between two rows can land the block in that same relative order.
+     */
+    data class TaskDrag(val tasks: List<Task>) : DragPayload {
+        constructor(task: Task) : this(listOf(task))
+
+        override val id: String get() = tasks.first().id
+
+        /** Every dragged row's id. */
+        val ids: Set<String> get() = tasks.map { it.id }.toSet()
     }
 
     data class ProjectDrag(val project: Project) : DragPayload {
@@ -104,17 +114,22 @@ sealed interface DropTarget {
 /** What the app should actually do — the only thing a shell has to interpret. */
 sealed interface DropIntent {
 
-    /** File a task under a project and a band. Both are absolute: null means Inbox / ungrouped. */
+    /**
+     * File the tasks under a project and a band. Both are absolute: null means Inbox / ungrouped.
+     * [taskIds] is one row normally, the whole dragged selection when the drag started on a
+     * selected row (#40) — and only ever the rows that would actually change, so a drop that
+     * moves nothing resolves to [Rejected] instead.
+     */
     data class MoveTask(
-        val taskId: String,
+        val taskIds: List<String>,
         val projectId: String?,
         val sectionId: String?,
     ) : DropIntent
 
-    data class RescheduleTask(val taskId: String, val date: LocalDate?) : DropIntent
+    data class RescheduleTask(val taskIds: List<String>, val date: LocalDate?) : DropIntent
 
-    /** Put [tagId] on [taskId], keeping every label it already has. */
-    data class TagTask(val taskId: String, val tagId: String) : DropIntent
+    /** Put [tagId] on every listed task, keeping every label they already have. */
+    data class TagTask(val taskIds: List<String>, val tagId: String) : DropIntent
 
     /** Nest a project under [parentId], or (null) lift it back to the root list. */
     data class NestProject(val projectId: String, val parentId: String?) : DropIntent
@@ -148,53 +163,66 @@ sealed interface DropIntent {
  */
 fun resolveDrop(payload: DragPayload, target: DropTarget, state: CadenceUiState): DropIntent =
     when (payload) {
-        is DragPayload.TaskDrag -> resolveTaskDrop(payload.task, target)
+        is DragPayload.TaskDrag -> resolveTaskDrop(payload.tasks, target)
         is DragPayload.ProjectDrag -> resolveProjectDrop(payload.project, target, state)
         is DragPayload.SectionDrag -> resolveSectionDrop(payload.section, target)
         is DragPayload.TagDrag -> resolveTagDrop(payload.tag, target)
     }
 
-private fun resolveTaskDrop(task: Task, target: DropTarget): DropIntent =
+private fun resolveTaskDrop(tasks: List<Task>, target: DropTarget): DropIntent =
     when (target) {
-        is DropTarget.IntoProject -> when {
-            task.projectId == target.projectId -> DropIntent.Rejected
+        is DropTarget.IntoProject -> {
             // A band belongs to one project, so a task that changes project loses its heading —
-            // the same rule `CadenceRepository.moveToProject` applies.
-            else -> DropIntent.MoveTask(task.id, target.projectId, sectionId = null)
+            // the same rule `CadenceRepository.moveToProject` applies. Rows already filed there
+            // are not in the intent: rewriting them would be a write that changes nothing.
+            val affected = tasks.filter { it.projectId != target.projectId }
+            if (affected.isEmpty()) DropIntent.Rejected
+            else DropIntent.MoveTask(affected.map { it.id }, target.projectId, sectionId = null)
         }
 
-        is DropTarget.IntoSection -> when {
-            task.projectId == target.projectId && task.sectionId == target.sectionId ->
-                DropIntent.Rejected
+        is DropTarget.IntoSection -> {
             // Dropping on a band of a project the task is not in is a move *and* a grouping, not
             // a rejection: the band names its project, so the gesture is unambiguous.
-            else -> DropIntent.MoveTask(task.id, target.projectId, target.sectionId)
+            val affected = tasks.filter {
+                it.projectId != target.projectId || it.sectionId != target.sectionId
+            }
+            if (affected.isEmpty()) DropIntent.Rejected
+            else DropIntent.MoveTask(affected.map { it.id }, target.projectId, target.sectionId)
         }
 
-        is DropTarget.OntoDate ->
-            if (task.dueDate == target.date) DropIntent.Rejected
-            else DropIntent.RescheduleTask(task.id, target.date)
+        is DropTarget.OntoDate -> {
+            val affected = tasks.filter { it.dueDate != target.date }
+            if (affected.isEmpty()) DropIntent.Rejected
+            else DropIntent.RescheduleTask(affected.map { it.id }, target.date)
+        }
 
-        // A label the task already wears is a drop that would change nothing, so the row does not
-        // light up — the same rule every branch here follows.
-        is DropTarget.IntoTag ->
-            if (target.tagId in task.tagIds) DropIntent.Rejected
-            else DropIntent.TagTask(task.id, target.tagId)
+        // A label every dragged row already wears is a drop that would change nothing, so the row
+        // does not light up — the same rule every branch here follows.
+        is DropTarget.IntoTag -> {
+            val affected = tasks.filter { target.tagId !in it.tagIds }
+            if (affected.isEmpty()) DropIntent.Rejected
+            else DropIntent.TagTask(affected.map { it.id }, target.tagId)
+        }
 
         is DropTarget.Between -> when (val list = target.list) {
             is OrderedList.Tasks -> {
-                val move = if (task.projectId != list.projectId || task.sectionId != list.sectionId) {
-                    DropIntent.MoveTask(task.id, list.projectId, list.sectionId)
-                } else {
-                    null
+                val affected = tasks.filter {
+                    it.projectId != list.projectId || it.sectionId != list.sectionId
                 }
-                val ordered = insertAt(target.orderedIds, task.id, target.index)
+                val move = if (affected.isEmpty()) {
+                    null
+                } else {
+                    DropIntent.MoveTask(affected.map { it.id }, list.projectId, list.sectionId)
+                }
+                val block = tasks.map { it.id }
+                val ordered = insertAt(target.orderedIds, block.toSet(), target.index, blockOrder = block)
                 if (ordered == null) DropIntent.Rejected else DropIntent.ReorderTasks(ordered, move)
             }
 
             // Order only — see [OrderedList.LooseTasks].
             OrderedList.LooseTasks -> {
-                val ordered = insertAt(target.orderedIds, task.id, target.index)
+                val block = tasks.map { it.id }
+                val ordered = insertAt(target.orderedIds, block.toSet(), target.index, blockOrder = block)
                 if (ordered == null) DropIntent.Rejected else DropIntent.ReorderTasks(ordered)
             }
 
@@ -228,7 +256,7 @@ private fun resolveProjectDrop(
             // nested but numbered among rows it is not beside.
             DropIntent.Rejected
         } else {
-            val ordered = insertAt(target.orderedIds, project.id, target.index)
+            val ordered = insertAt(target.orderedIds, setOf(project.id), target.index)
             if (ordered == null) DropIntent.Rejected
             else DropIntent.ReorderProjects(list.parentId, ordered)
         }
@@ -242,7 +270,7 @@ private fun resolveSectionDrop(section: Section, target: DropTarget): DropIntent
     val between = target as? DropTarget.Between ?: return DropIntent.Rejected
     val list = between.list as? OrderedList.Sections ?: return DropIntent.Rejected
     if (list.projectId != section.projectId) return DropIntent.Rejected
-    val ordered = insertAt(between.orderedIds, section.id, between.index)
+    val ordered = insertAt(between.orderedIds, setOf(section.id), between.index)
         ?: return DropIntent.Rejected
     return DropIntent.ReorderSections(list.projectId, ordered)
 }
@@ -257,7 +285,7 @@ private fun resolveSectionDrop(section: Section, target: DropTarget): DropIntent
 private fun resolveTagDrop(tag: Tag, target: DropTarget): DropIntent {
     val between = target as? DropTarget.Between ?: return DropIntent.Rejected
     if (between.list !is OrderedList.Tags) return DropIntent.Rejected
-    val ordered = insertAt(between.orderedIds, tag.id, between.index) ?: return DropIntent.Rejected
+    val ordered = insertAt(between.orderedIds, setOf(tag.id), between.index) ?: return DropIntent.Rejected
     return DropIntent.ReorderTags(ordered)
 }
 
@@ -279,23 +307,30 @@ private fun nestOrReject(project: Project, parentId: String, state: CadenceUiSta
     }
 
 /**
- * [orderedIds] with [movedId] taken out and put back at [index], or null when that is where it
- * already is.
+ * [orderedIds] with every id in [movedIds] taken out and put back as one block at [index], or null
+ * when that is where they already are.
  *
  * [index] counts gaps in the list *as drawn* — index 2 of `[a, b, c]` is the gap between `b` and
- * `c` — so a row moving down has to have its own slot removed before it lands, which is what
- * makes dropping a row into the gap just below itself a no-op rather than an off-by-one.
+ * `c` — so rows moving down have to have their own slots removed before they land, which is what
+ * makes dropping a row into the gap just below itself a no-op rather than an off-by-one. The
+ * block keeps [blockOrder]'s relative order, which for a multi-select drag (#40) is the order the
+ * rows were drawn in.
  */
-internal fun insertAt(orderedIds: List<String>, movedId: String, index: Int): List<String>? {
-    val from = orderedIds.indexOf(movedId)
-    val without = if (from >= 0) orderedIds - movedId else orderedIds
-    val to = when {
-        from < 0 -> index.coerceIn(0, without.size)
-        index > from -> (index - 1).coerceIn(0, without.size)
-        else -> index.coerceIn(0, without.size)
-    }
-    if (from == to) return null
-    return without.toMutableList().apply { add(to, movedId) }
+internal fun insertAt(
+    orderedIds: List<String>,
+    movedIds: Set<String>,
+    index: Int,
+    blockOrder: List<String> = movedIds.toList(),
+): List<String>? {
+    if (movedIds.isEmpty()) return null
+    val without = orderedIds.filterNot { it in movedIds }
+    // How many of the moved rows sat above the gap: each one shifts the landing point up by one.
+    val movedAbove = orderedIds.take(index).count { it in movedIds }
+    val to = (index - movedAbove).coerceIn(0, without.size)
+    val alreadyThere = without.size + movedIds.size == orderedIds.size &&
+        orderedIds.subList(to, to + movedIds.size) == blockOrder
+    if (alreadyThere) return null
+    return without.toMutableList().apply { addAll(to, blockOrder) }
 }
 
 /** A registered drop zone: where it is on screen, and what it would accept. */

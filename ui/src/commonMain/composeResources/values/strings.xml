@@ -620,4 +620,45 @@
     <string name="snackbar_attachment_failed">That file could not be copied</string>
     <string name="snackbar_attachment_invalid_link">Please enter a link</string>
     <string name="snackbar_attachment_no_viewer">Nothing on this device opens that</string>
+    <!-- ── Multi-select (#40) ─────────────────────────────────────────────────────
+         The selection action bar, the batch snackbars and the drag ghost. -->
+    <string name="action_select_all">Select all</string>
+    <string name="action_clear_selection">Clear selection</string>
+    <string name="tags_remove_from_task">Remove tag</string>
+    <plurals name="selection_count">
+        <item quantity="one">1 task selected</item>
+        <item quantity="other">%1$d tasks selected</item>
+    </plurals>
+    <plurals name="drag_multiple_tasks">
+        <item quantity="one">1 task</item>
+        <item quantity="other">%1$d tasks</item>
+    </plurals>
+    <plurals name="batch_tasks_completed">
+        <item quantity="one">1 task completed</item>
+        <item quantity="other">%1$d tasks completed</item>
+    </plurals>
+    <plurals name="batch_tasks_reopened">
+        <item quantity="one">1 task reopened</item>
+        <item quantity="other">%1$d tasks reopened</item>
+    </plurals>
+    <plurals name="batch_tasks_moved">
+        <item quantity="one">1 task moved</item>
+        <item quantity="other">%1$d tasks moved</item>
+    </plurals>
+    <plurals name="batch_tasks_rescheduled">
+        <item quantity="one">1 task rescheduled</item>
+        <item quantity="other">%1$d tasks rescheduled</item>
+    </plurals>
+    <plurals name="batch_tasks_priority_set">
+        <item quantity="one">Priority set on 1 task</item>
+        <item quantity="other">Priority set on %1$d tasks</item>
+    </plurals>
+    <plurals name="batch_tasks_tag_added">
+        <item quantity="one">Label added to 1 task</item>
+        <item quantity="other">Label added to %1$d tasks</item>
+    </plurals>
+    <plurals name="batch_tasks_tag_removed">
+        <item quantity="one">Label removed from 1 task</item>
+        <item quantity="other">Label removed from %1$d tasks</item>
+    </plurals>
 </resources>

@@ -402,71 +402,149 @@ class CadenceRepository(
         completed: Boolean,
         today: LocalDate = today(),
     ): List<String> = write {
-        if (!completed) {
-            return@write storeTransaction.run {
-                if (reopenTaskIfDone(task.id, now()) == 0) return@run emptyList()
-                val successors = openSuccessorsOf(task.id)
-                val at = now()
-                successors.forEach { tombstoneTaskWithSubtasks(it, at) }
-                successors
-            }
-        }
         storeTransaction.run {
-            val now = now()
-            if (completeTaskIfOpen(task.id, now) == 0) return@run emptyList()
+            if (completed) completeTaskTx(task.id, today) else reopenTaskTx(task.id)
+        }
+    }
 
-            // Read the row back rather than trust the snapshot: the rule, the due date and the
-            // project may have been edited since the row was drawn, and the next occurrence
-            // inherits all of them.
-            val current = taskById(task.id) ?: return@run emptyList()
+    /** [TransactionScope] body of completing [id] — shared by [setCompleted] and [applyToTasks]. */
+    private fun TransactionScope.completeTaskTx(id: String, today: LocalDate): List<String> {
+        val now = now()
+        if (completeTaskIfOpen(id, now) == 0) return emptyList()
 
-            val subtasks = subtasksOf(current.id)
-            subtasks.filter { !it.isDone }
-                .forEach { updateTask(it.copy(completedAt = now, updatedAt = now)) }
+        // Read the row back rather than trust the snapshot: the rule, the due date and the
+        // project may have been edited since the row was drawn, and the next occurrence
+        // inherits all of them.
+        val current = taskById(id) ?: return emptyList()
 
-            val rule = current.recurrence ?: return@run emptyList()
-            val nextDue = RecurrenceEngine.dueDateAfterCompletion(rule, current.dueDate, today)
-            val nextId = UuidV7.successorId(current.id, nextDue)
-            val shift = current.dueDate?.let { ChronoUnit.DAYS.between(it, nextDue) } ?: 0L
+        val subtasks = subtasksOf(current.id)
+        subtasks.filter { !it.isDone }
+            .forEach { updateTask(it.copy(completedAt = now, updatedAt = now)) }
+
+        val rule = current.recurrence ?: return emptyList()
+        val nextDue = RecurrenceEngine.dueDateAfterCompletion(rule, current.dueDate, today)
+        val nextId = UuidV7.successorId(current.id, nextDue)
+        val shift = current.dueDate?.let { ChronoUnit.DAYS.between(it, nextDue) } ?: 0L
+        insertTask(
+            current.copy(
+                id = nextId,
+                completedAt = null,
+                dueDate = nextDue,
+                // Relative reminders carry over with the row copy and need no code — they
+                // are computed from the due date at plan time. An `At` shifts by the same
+                // day span as the due date, like the subtask dates below; one already in the
+                // past after the shift is dropped.
+                reminders = current.reminders.shiftedByDays(shift, now, clock.zone),
+                createdAt = now,
+                updatedAt = now,
+                spawnedFromId = current.id,
+            ),
+        )
+        subtasks.forEach { subtask ->
             insertTask(
-                current.copy(
-                    id = nextId,
+                subtask.copy(
+                    id = UuidV7.successorId(current.id, nextDue, discriminant = subtask.id),
+                    parentId = nextId,
                     completedAt = null,
-                    dueDate = nextDue,
-                    // Relative reminders carry over with the row copy and need no code — they
-                    // are computed from the due date at plan time. An `At` shifts by the same
-                    // day span as the due date, like the subtask dates below; one already in the
-                    // past after the shift is dropped.
-                    reminders = current.reminders.shiftedByDays(shift, now, clock.zone),
+                    dueDate = subtask.dueDate?.plusDays(shift),
                     createdAt = now,
                     updatedAt = now,
-                    spawnedFromId = current.id,
+                    // The step belongs to the new occurrence, which already carries the link
+                    // back; only the parent rows form the chain.
+                    spawnedFromId = null,
                 ),
             )
-            subtasks.forEach { subtask ->
-                insertTask(
-                    subtask.copy(
-                        id = UuidV7.successorId(current.id, nextDue, discriminant = subtask.id),
-                        parentId = nextId,
-                        completedAt = null,
-                        dueDate = subtask.dueDate?.plusDays(shift),
-                        createdAt = now,
-                        updatedAt = now,
-                        // The step belongs to the new occurrence, which already carries the link
-                        // back; only the parent rows form the chain.
-                        spawnedFromId = null,
-                    ),
-                )
-            }
-
-            // A checklist is the method of doing the task, and the method repeats — attachments
-            // follow the same rule and hand over unticked. The store is content-addressed, so
-            // cloning a FILE row copies no bytes, only a row that points at the same blob.
-            attachmentsForTask(current.id).forEach { attachment ->
-                insertAttachment(attachment.copy(id = UuidV7.random(), taskId = nextId))
-            }
-            emptyList()
         }
+
+        // A checklist is the method of doing the task, and the method repeats — attachments
+        // follow the same rule and hand over unticked. The store is content-addressed, so
+        // cloning a FILE row copies no bytes, only a row that points at the same blob.
+        attachmentsForTask(current.id).forEach { attachment ->
+            insertAttachment(attachment.copy(id = UuidV7.random(), taskId = nextId))
+        }
+        return emptyList()
+    }
+
+    /** [TransactionScope] body of reopening [id] — shared by [setCompleted] and [applyToTasks]. */
+    private fun TransactionScope.reopenTaskTx(id: String): List<String> {
+        if (reopenTaskIfDone(id, now()) == 0) return emptyList()
+        val successors = openSuccessorsOf(id)
+        val at = now()
+        successors.forEach { tombstoneTaskWithSubtasks(it, at) }
+        return successors
+    }
+
+    /**
+     * Applies [action] to every task in [taskIds] as **one** write: the whole loop lands in one
+     * [storeTransaction] and the blob reclaim runs once at the end, so a batch is one sync tick
+     * and one undo entry rather than N of each (#40). Deleting inside a batch reclaims with the
+     * same [blobGate] rule as [deleteTask].
+     *
+     * @return the ids of the rows this call tombstoned — deleted tasks and their steps, plus the
+     *   successors a reopen removed — so the caller can cancel their reminders.
+     */
+    suspend fun applyToTasks(taskIds: List<String>, action: TaskBatchAction): List<String> = write {
+        val tombstoned = mutableListOf<String>()
+        val hashes = storeTransaction.run {
+            val reclaimed = mutableListOf<String>()
+            for (id in taskIds.distinct()) {
+                when (action) {
+                    // Both return the rows they tombstoned (reopen removes the successors a
+                    // completion spawned); completing inserts rather than deletes.
+                    TaskBatchAction.Complete -> tombstoned += completeTaskTx(id, today())
+                    TaskBatchAction.Reopen -> tombstoned += reopenTaskTx(id)
+                    TaskBatchAction.Delete -> {
+                        val ids = listOf(id) + subtasksOf(id).map { it.id }
+                        reclaimed += hashesForTasks(ids)
+                        deleteAttachmentsForTasks(ids)
+                        tombstoneTaskWithSubtasks(id, now())
+                        tombstoned += ids
+                    }
+                    is TaskBatchAction.MoveToProject -> {
+                        val task = taskById(id)
+                        if (task != null) {
+                            val now = now()
+                            // A section belongs to one project: moving to the Inbox (null)
+                            // clears it, the same rule [moveToProject] applies.
+                            val sectionId = if (action.projectId == null) null else action.sectionId
+                            updateTask(
+                                task.copy(projectId = action.projectId, sectionId = sectionId, updatedAt = now),
+                            )
+                            subtasksOf(id).forEach {
+                                updateTask(
+                                    it.copy(projectId = action.projectId, sectionId = sectionId, updatedAt = now),
+                                )
+                            }
+                        }
+                    }
+                    is TaskBatchAction.SetDueDate -> {
+                        val task = taskById(id)
+                        if (task != null) updateTask(task.copy(dueDate = action.dueDate, updatedAt = now()))
+                    }
+                    is TaskBatchAction.SetPriority -> {
+                        val task = taskById(id)
+                        if (task != null) updateTask(task.copy(priority = action.priority, updatedAt = now()))
+                    }
+                    is TaskBatchAction.AddTag -> {
+                        val task = taskById(id)
+                        if (task != null && action.tagId !in task.tagIds) {
+                            updateTask(
+                                task.copy(tagIds = (task.tagIds + action.tagId).distinct(), updatedAt = now()),
+                            )
+                        }
+                    }
+                    is TaskBatchAction.RemoveTag -> {
+                        val task = taskById(id)
+                        if (task != null && action.tagId in task.tagIds) {
+                            updateTask(task.copy(tagIds = task.tagIds - action.tagId, updatedAt = now()))
+                        }
+                    }
+                }
+            }
+            reclaimed
+        }
+        reclaim(hashes)
+        tombstoned
     }
 
     /** Moves a task's due date by [days], used by snooze and the overdue triage action. */

@@ -5,6 +5,7 @@ import de.andi1984.cadence.data.CadenceRepository
 import de.andi1984.cadence.data.MAX_ATTACHMENTS_PER_TASK
 import de.andi1984.cadence.data.RepositoryResult
 import de.andi1984.cadence.data.StoreResult
+import de.andi1984.cadence.data.TaskBatchAction
 import de.andi1984.cadence.domain.model.Attachment
 import de.andi1984.cadence.domain.model.AttachmentKind
 import de.andi1984.cadence.domain.model.Priority
@@ -766,6 +767,120 @@ class CadenceRepositoryTest {
 
         assertEquals(hash, attachmentStore.forTask(taskB.id).single().sha256)
         assertNotNull(blobStore.file(hash))
+    }
+
+    // ── Batch actions (#40) ────────────────────────────────────────────────────────
+    //
+    // applyToTasks runs one action over many ids in one transaction, so these pin the effects per
+    // action and the reclaim rule at the end: one sweep, and a blob another row still names is
+    // kept.
+
+    @Test
+    fun `applyToTasks delete tombstones the tasks and their steps and reclaims only unreferenced blobs`() =
+        runTest {
+            val a = store(Task(title = "A"))
+            val step = store(Task(title = "Step", parentId = a.id))
+            val b = store(Task(title = "B"))
+            val keeper = store(Task(title = "Keeper"))
+            val sharedHash = attach(a.id, byteArrayOf(1, 2, 3))
+            attach(keeper.id, byteArrayOf(1, 2, 3)) // same bytes, same hash
+            val orphanHash = attach(b.id, byteArrayOf(9))
+
+            val tombstoned = repository.applyToTasks(listOf(a.id, b.id), TaskBatchAction.Delete)
+
+            assertEquals(setOf(a.id, step.id, b.id), tombstoned.toSet())
+            tombstoned.forEach { assertEquals(fixedNow, taskRow(it).deletedAt) }
+            assertTrue(attachmentStore.forTask(a.id).isEmpty())
+            assertNotNull(blobStore.file(sharedHash))
+            assertNull(blobStore.file(orphanHash))
+        }
+
+    @Test
+    fun `applyToTasks complete finishes every task and spawns each recurring successor`() = runTest {
+        val first = store(recurring())
+        val second = store(recurring(due = LocalDate.of(2026, 8, 8)))
+        val plain = store(Task(title = "Plain"))
+
+        repository.applyToTasks(listOf(first.id, second.id, plain.id), TaskBatchAction.Complete)
+
+        assertTrue(taskRow(first.id).isDone)
+        assertTrue(taskRow(second.id).isDone)
+        assertTrue(taskRow(plain.id).isDone)
+        val successors = taskStore.getAll().filter { it.spawnedFromId != null }
+        assertEquals(setOf(first.id, second.id), successors.map { it.spawnedFromId }.toSet())
+        assertTrue(successors.none { it.isDone })
+    }
+
+    @Test
+    fun `applyToTasks reopen takes back a batch completion and removes the successors it spawned`() =
+        runTest {
+            val first = store(recurring())
+            val second = store(recurring(due = LocalDate.of(2026, 8, 8)))
+
+            repository.applyToTasks(listOf(first.id, second.id), TaskBatchAction.Complete)
+            val successorIds = taskStore.getAll().filter { it.spawnedFromId != null }.map { it.id }
+            assertEquals(2, successorIds.size)
+
+            val tombstoned = repository.applyToTasks(listOf(first.id, second.id), TaskBatchAction.Reopen)
+
+            assertFalse(taskRow(first.id).isDone)
+            assertFalse(taskRow(second.id).isDone)
+            assertEquals(successorIds.toSet(), tombstoned.toSet())
+            successorIds.forEach { assertEquals(fixedNow, taskRow(it).deletedAt) }
+        }
+
+    @Test
+    fun `applyToTasks move files the tasks and their steps, keeping the section inside the project and clearing it for the Inbox`() =
+        runTest {
+            repository.upsertProject(Project(id = "work", name = "Work"))
+            val sectionId = section(projectId = "work")
+            val inWork = store(Task(title = "In work", projectId = "work", sectionId = sectionId))
+            val step = store(Task(title = "Step", parentId = inWork.id, projectId = "work"))
+            val inbox = store(Task(title = "Inbox"))
+
+            repository.applyToTasks(listOf(inWork.id), TaskBatchAction.MoveToProject("work", sectionId))
+            assertEquals(sectionId, taskRow(inWork.id).sectionId)
+            assertEquals(sectionId, taskRow(step.id).sectionId)
+
+            repository.applyToTasks(
+                listOf(inWork.id, inbox.id),
+                TaskBatchAction.MoveToProject(null),
+            )
+            assertNull(taskRow(inWork.id).projectId)
+            assertNull(taskRow(inWork.id).sectionId)
+            assertNull(taskRow(step.id).projectId)
+            assertNull(taskRow(inbox.id).projectId)
+        }
+
+    @Test
+    fun `applyToTasks setDueDate, setPriority and the tag actions apply to every listed task`() = runTest {
+        val a = store(Task(title = "A", tagIds = listOf("waiting")))
+        val b = store(Task(title = "B"))
+        val tag = (repository.upsertTag(Tag(name = "Errand")) as RepositoryResult.Success).data
+
+        repository.applyToTasks(listOf(a.id, b.id), TaskBatchAction.SetDueDate(LocalDate.of(2026, 8, 10)))
+        repository.applyToTasks(listOf(a.id, b.id), TaskBatchAction.SetPriority(Priority.P1))
+        repository.applyToTasks(listOf(a.id, b.id), TaskBatchAction.AddTag(tag))
+        repository.applyToTasks(listOf(a.id), TaskBatchAction.RemoveTag("waiting"))
+
+        for (id in listOf(a.id, b.id)) {
+            val row = taskRow(id)
+            assertEquals(LocalDate.of(2026, 8, 10), row.dueDate)
+            assertEquals(Priority.P1, row.priority)
+            assertTrue(tag in row.tagIds)
+        }
+        assertFalse("waiting" in taskRow(a.id).tagIds)
+    }
+
+    @Test
+    fun `applyToTasks skips an id that is gone and still writes the rest`() = runTest {
+        val a = store(Task(title = "A"))
+        val b = store(Task(title = "B"))
+
+        repository.applyToTasks(listOf(a.id, "missing", b.id), TaskBatchAction.SetPriority(Priority.P3))
+
+        assertEquals(Priority.P3, taskRow(a.id).priority)
+        assertEquals(Priority.P3, taskRow(b.id).priority)
     }
 
     // ── Manual order ───────────────────────────────────────────────────────────────

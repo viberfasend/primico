@@ -38,7 +38,7 @@ import de.andi1984.cadence.domain.model.Task
 import de.andi1984.cadence.ui.CadenceUiState
 import de.andi1984.cadence.ui.components.DayHeader
 import de.andi1984.cadence.ui.components.EmptyState
-import de.andi1984.cadence.ui.components.ScreenHeader
+import de.andi1984.cadence.ui.components.TaskListHeader
 import de.andi1984.cadence.ui.components.SyncActions
 import de.andi1984.cadence.ui.components.SyncControls
 import de.andi1984.cadence.ui.components.SyncRefreshBox
@@ -89,7 +89,7 @@ fun UpcomingScreen(
     val scope = rememberCoroutineScope()
 
     Column(modifier = Modifier.fillMaxSize()) {
-        ScreenHeader(
+        TaskListHeader(
             title = stringResource(Res.string.upcoming_title),
             subtitle = stringResource(Res.string.upcoming_subtitle, pluralTasks(nextWeekCount)),
         ) {

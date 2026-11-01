@@ -38,6 +38,8 @@ import de.andi1984.cadence.domain.model.Priority
 import de.andi1984.cadence.domain.model.Task
 import de.andi1984.cadence.ui.CadenceUiState
 import de.andi1984.cadence.ui.components.AppIcons
+import de.andi1984.cadence.ui.components.LocalRowSelection
+import de.andi1984.cadence.ui.components.SelectionActionBar
 import de.andi1984.cadence.ui.components.CadenceDatePickerDialog
 import de.andi1984.cadence.ui.components.EmptyState
 import de.andi1984.cadence.ui.components.PrioritySpine
@@ -70,6 +72,9 @@ fun TriageScreen(
     val ranked = queue.take(index).mapNotNull { id -> state.tasks.firstOrNull { it.id == id } }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        if (LocalRowSelection.current.isSelecting) {
+            SelectionActionBar()
+        } else {
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 12.dp, top = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -84,6 +89,7 @@ fun TriageScreen(
                 modifier = Modifier.weight(1f),
             )
             TextButton(onClick = onClose) { Text(stringResource(Res.string.triage_skip_all)) }
+        }
         }
 
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {

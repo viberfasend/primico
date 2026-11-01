@@ -45,7 +45,7 @@ import de.andi1984.cadence.ui.components.EmptyState
 import de.andi1984.cadence.ui.components.HintedAction
 import de.andi1984.cadence.ui.components.ShortcutTooltip
 import de.andi1984.cadence.ui.components.quickAddHint
-import de.andi1984.cadence.ui.components.ScreenHeader
+import de.andi1984.cadence.ui.components.TaskListHeader
 import de.andi1984.cadence.ui.components.SyncActions
 import de.andi1984.cadence.ui.components.SyncControls
 import de.andi1984.cadence.ui.components.SyncRefreshBox
@@ -82,7 +82,7 @@ fun TodayScreen(
     var overdueExpanded by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        ScreenHeader(
+        TaskListHeader(
             title = stringResource(Res.string.today_title),
             subtitle = "${formatDate(today)} · ${pluralTasks(openCount)}",
         ) {

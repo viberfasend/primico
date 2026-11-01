@@ -3,6 +3,7 @@ package de.andi1984.cadence.ui.components
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
+import de.andi1984.cadence.data.TaskBatchAction
 import de.andi1984.cadence.domain.model.Priority
 import de.andi1984.cadence.domain.model.Task
 import de.andi1984.cadence.ui.CadenceUiState
@@ -36,6 +37,11 @@ data class RowInteractions(
     val onMoveTaskToSection: (Task, String?) -> Unit = { _, _ -> },
     val onDuplicateTask: (Task) -> Unit = {},
     val onDeleteTask: (Task) -> Unit = {},
+    /**
+     * Applies [action] to every row in [ids] — what the selection action bar calls (#40). One
+     * repository write and one undo entry for the whole set, never a per-row loop in the shell.
+     */
+    val onBatchAction: (ids: List<String>, action: TaskBatchAction) -> Unit = { _, _ -> },
 )
 
 val LocalRowInteractions = staticCompositionLocalOf { RowInteractions() }

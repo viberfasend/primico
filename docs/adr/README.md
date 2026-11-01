@@ -18,6 +18,7 @@ The code tells you *what*; an ADR tells you *why not the obvious alternative*.
 | [0004](0004-tags.md) | A tag is identity only; which tasks wear it is a packed column on the task | Accepted | 2026-08-22 |
 | [0005](0005-neon-sync.md) | The sync backend moves from Supabase to Neon (Data API + Neon Auth), realtime becomes a poll | Accepted | 2026-08-25 |
 | [0006](0006-task-reminders.md) | A task carries a list of reminders with several trigger kinds, packed into one column on the task | Accepted | 2026-10-25 |
+| [0007](0007-blob-store-invariants.md) | Blob store invariants: cancellation unwinds instead of failing, and reclaiming a blob is mutex-gated against filing the row that names it | Accepted | 2026-11-01 |
 
 ```mermaid
 flowchart LR
@@ -28,6 +29,7 @@ flowchart LR
   A1 -. "decision 6 superseded" .-> A2
   A2 -. "decisions 6, 12 superseded" .-> A5
   A2 --> A6["0006<br/>flexible reminders"]
+  A1 --> A7["0007<br/>blob store invariants"]
 ```
 
 ## Numbers that are already spoken for

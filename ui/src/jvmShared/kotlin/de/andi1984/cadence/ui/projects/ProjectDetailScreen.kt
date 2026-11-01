@@ -39,6 +39,8 @@ import de.andi1984.cadence.domain.model.projectPath
 import de.andi1984.cadence.ui.CadenceUiState
 import de.andi1984.cadence.ui.TaskListRow
 import de.andi1984.cadence.ui.components.AppIcons
+import de.andi1984.cadence.ui.components.LocalRowSelection
+import de.andi1984.cadence.ui.components.SelectionActionBar
 import de.andi1984.cadence.ui.components.EmptyState
 import de.andi1984.cadence.ui.components.ProjectSwatch
 import de.andi1984.cadence.ui.components.SectionHeader
@@ -88,6 +90,9 @@ fun ProjectDetailScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        if (LocalRowSelection.current.isSelecting) {
+            SelectionActionBar()
+        } else {
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 8.dp, top = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -133,6 +138,7 @@ fun ProjectDetailScreen(
                 onDelete = { dialog = ProjectDialogState.Delete(project) },
                 onAddSection = { sectionDialog = SectionDialogState.Create(project.id) },
             )
+        }
         }
 
         LazyColumn(

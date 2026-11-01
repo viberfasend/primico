@@ -1,5 +1,6 @@
 package de.andi1984.cadence.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -35,10 +36,23 @@ class RowSelectionState {
     var selectedId: String? by mutableStateOf(null)
         private set
 
+    /**
+     * The multi-select set, beside the cursor (#40). Non-empty means the list is in selection
+     * mode and the action bar is up; the cursor [selectedId] stays the row `j`/`k` move and the
+     * row a plain click opens, so the two never fight.
+     */
+    var selectedIds: Set<String> by mutableStateOf(emptySet())
+        private set
+
+    /** Whether the list is in selection mode — the action bar replaces the header while this is on. */
+    val isSelecting: Boolean get() = selectedIds.isNotEmpty()
+
     /** Row id to its top edge in root coordinates. */
     private val rows = mutableStateMapOf<String, Float>()
 
     fun isSelected(id: String): Boolean = selectedId == id
+
+    fun isMultiSelected(id: String): Boolean = id in selectedIds
 
     internal fun register(id: String, top: Float) {
         rows[id] = top
@@ -49,10 +63,44 @@ class RowSelectionState {
         // A row that scrolled away or was deleted must not stay selected: the next `x` would act
         // on something nobody can see.
         if (selectedId == id) selectedId = null
+        if (id in selectedIds) selectedIds = selectedIds - id
     }
 
+    /**
+     * A plain click: the cursor moves, and unless the click landed on a row that is already in
+     * the set, the set is cleared — one row acted on is the cursor's business, ten are the set's.
+     */
     fun select(id: String?) {
         selectedId = id
+        if (id == null || id !in selectedIds) selectedIds = emptySet()
+    }
+
+    /** Ctrl/Cmd+click (or `x` on the cursor's row, or a long-press on Android): flip one row's membership. */
+    fun toggle(id: String) {
+        selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
+        selectedId = id
+    }
+
+    /** Shift+click: everything between the cursor and [id], inclusive, joins the set. */
+    fun extendTo(id: String) {
+        val ids = visibleIds()
+        val to = ids.indexOf(id)
+        if (to < 0) return
+        val from = selectedId?.let(ids::indexOf)?.takeIf { it >= 0 } ?: 0
+        val lo = minOf(from, to)
+        val hi = maxOf(from, to)
+        selectedIds = selectedIds + ids.subList(lo, hi + 1)
+        selectedId = id
+    }
+
+    /** Ctrl/Cmd+A: every row currently drawn. */
+    fun selectAllVisible() {
+        selectedIds = visibleIds().toSet()
+    }
+
+    /** Esc: leave selection mode, keep the cursor where it is. */
+    fun clearSelection() {
+        selectedIds = emptySet()
     }
 
     /** The rows currently drawn, top to bottom. */
@@ -80,10 +128,13 @@ class RowSelectionState {
 val LocalRowSelection = staticCompositionLocalOf { RowSelectionState() }
 
 /**
- * Registers this row as selectable and draws the ring when it is the selected one.
+ * Registers this row as selectable and draws its state: a ring for the keyboard cursor, a filled
+ * background for the multi-select set (#40).
  *
- * A ring rather than a filled background: a task row already uses its background for "overdue",
- * and two meanings on one surface is how a list stops being readable.
+ * A ring rather than a filled background for the cursor, because a task row already uses its
+ * background for "overdue" and two meanings on one surface is how a list stops being readable;
+ * the set gets the fill instead, since many rows wearing it at once is exactly the picture
+ * "these are the ones the bar acts on" needs.
  */
 @Composable
 fun Modifier.selectableRow(id: String): Modifier {
@@ -100,8 +151,14 @@ fun Modifier.selectableRow(id: String): Modifier {
     } else {
         Modifier
     }
+    val fill = if (selection.isMultiSelected(id)) {
+        Modifier.background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(16.dp))
+    } else {
+        Modifier
+    }
 
     return this
         .onGloballyPositioned { selection.register(id, it.boundsInRoot().top) }
+        .then(fill)
         .then(ring)
 }

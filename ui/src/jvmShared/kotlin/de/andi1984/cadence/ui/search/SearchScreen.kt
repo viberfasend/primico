@@ -34,6 +34,8 @@ import de.andi1984.cadence.ui.resources.*
 import de.andi1984.cadence.domain.model.Task
 import de.andi1984.cadence.ui.CadenceUiState
 import de.andi1984.cadence.ui.components.AppIcons
+import de.andi1984.cadence.ui.components.LocalRowSelection
+import de.andi1984.cadence.ui.components.SelectionActionBar
 import de.andi1984.cadence.ui.components.EmptyState
 import de.andi1984.cadence.ui.components.TaskRow
 import java.time.LocalDate
@@ -53,6 +55,9 @@ fun SearchScreen(
     val results = state.taskList(TaskView.Search(query), today).tasks
 
     Column(modifier = Modifier.fillMaxSize()) {
+        if (LocalRowSelection.current.isSelecting) {
+            SelectionActionBar()
+        } else {
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp, top = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -69,6 +74,7 @@ fun SearchScreen(
                     .weight(1f)
                     .focusRequester(focusRequester),
             )
+        }
         }
 
         if (query.isBlank()) {

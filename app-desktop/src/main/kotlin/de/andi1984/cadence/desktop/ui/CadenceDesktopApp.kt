@@ -156,6 +156,7 @@ fun CadenceDesktopApp(
         onMoveTaskToSection = viewModel::setSection,
         onDuplicateTask = { task -> viewModel.duplicateTask(task, "${task.title} (copy)") },
         onDeleteTask = viewModel::deleteTask,
+        onBatchAction = { ids, action -> viewModel.applyToTasks(ids.toSet(), action) },
     )
 
     DragAndDropHost(state = state, onIntent = viewModel::applyDropIntent) {

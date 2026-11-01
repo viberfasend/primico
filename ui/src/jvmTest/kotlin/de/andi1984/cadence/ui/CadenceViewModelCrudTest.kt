@@ -533,11 +533,11 @@ class CadenceViewModelCrudTest {
         stores.seedSections(Section(id = "band", projectId = "work", name = "Band"))
         val viewModel = viewModel()
 
-        viewModel.applyDropIntent(DropIntent.MoveTask("t1", "work", "band"))
+        viewModel.applyDropIntent(DropIntent.MoveTask(listOf("t1"), "work", "band"))
         runCurrent()
 
-        // The section is written against the row `moveToProject` left behind, not against the
-        // snapshot the drag started from — which still named `home` and would have been refused.
+        // Project and band land in one write now, so the section is never written against a row
+        // that still names `home` — the failure the two-step move used to risk.
         assertEquals("work", stored("t1").projectId)
         assertEquals("band", stored("t1").sectionId)
     }
@@ -651,7 +651,7 @@ class CadenceViewModelCrudTest {
         stores.seedTasks(task("t1").copy(tagIds = listOf("g2")))
         val viewModel = viewModel()
 
-        viewModel.applyDropIntent(DropIntent.TagTask("t1", "g1"))
+        viewModel.applyDropIntent(DropIntent.TagTask(listOf("t1"), "g1"))
         runCurrent()
 
         assertEquals(listOf("g2", "g1"), stored("t1").tagIds)

@@ -3,6 +3,7 @@ package de.andi1984.cadence.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -20,7 +21,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.isCtrlPressed
+import androidx.compose.ui.input.pointer.isMetaPressed
+import androidx.compose.ui.input.pointer.isShiftPressed
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -85,6 +94,17 @@ fun TaskRow(
     onExpandToggle: (() -> Unit)? = null,
 ) {
     val interactions = LocalRowInteractions.current
+    val selection = LocalRowSelection.current
+
+    // A drag started on a selected row carries the whole set (#40); a drag from an unselected
+    // row is just that row, even while the bar is up.
+    val dragPayload = if (selection.isMultiSelected(task.id)) {
+        val dragged = selection.selectedIds
+            .mapNotNull { id -> interactions.state.tasks.firstOrNull { it.id == id } }
+        DragPayload.TaskDrag(dragged.ifEmpty { listOf(task) })
+    } else {
+        DragPayload.TaskDrag(task)
+    }
 
     if (!interactions.enabled) {
         TaskRowContent(
@@ -102,6 +122,8 @@ fun TaskRow(
             attachmentCount = attachmentCount,
             expanded = expanded,
             onExpandToggle = onExpandToggle,
+            // Android enters selection mode on long-press and leaves it when the set empties.
+            onLongClick = { selection.toggle(task.id) },
         )
         return
     }
@@ -132,7 +154,7 @@ fun TaskRow(
             onClick = onClick,
             modifier = modifier
                 .selectableRow(task.id)
-                .cadenceDragSource(DragPayload.TaskDrag(task)) { TaskDragGhost(task) }
+                .cadenceDragSource(dragPayload) { TaskDragGhost(dragPayload.tasks) }
                 .dragSourceAlpha(task.id),
             overdueStyle = overdueStyle,
             showProject = showProject,
@@ -141,6 +163,18 @@ fun TaskRow(
             tags = tags,
             expanded = expanded,
             onExpandToggle = onExpandToggle,
+            // Shift+click extends the set from the cursor, Ctrl/Cmd+click flips one row, a
+            // plain click is the cursor's — it opens the row and leaves selection mode.
+            onModifiedClick = { shift, ctrl ->
+                when {
+                    shift -> selection.extendTo(task.id)
+                    ctrl -> selection.toggle(task.id)
+                    else -> {
+                        selection.select(task.id)
+                        onClick()
+                    }
+                }
+            },
         )
     }
 }
@@ -153,11 +187,15 @@ fun TaskRow(
  */
 private const val MAX_TAG_CHIPS_ON_ROW = 3
 
-/** What follows the cursor: the row's title, and nothing else worth carrying. */
+/** What follows the cursor: the row's title — or, for a dragged selection (#40), how many rows. */
 @Composable
-fun TaskDragGhost(task: Task) {
+fun TaskDragGhost(tasks: List<Task>) {
     Text(
-        text = task.title,
+        text = if (tasks.size == 1) {
+            tasks.first().title
+        } else {
+            pluralStringResource(Res.plurals.drag_multiple_tasks, tasks.size, tasks.size)
+        },
         style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
@@ -195,11 +233,39 @@ private fun TaskRowContent(
     expanded: Boolean = false,
     /** Set only where a row can reveal its subtasks inline — renders the expand toggle. */
     onExpandToggle: (() -> Unit)? = null,
+    /**
+     * A click with its keyboard modifiers — the desktop's Shift/Ctrl+click selection gestures
+     * (#40). When set, it replaces the plain [onClick]; when null and [onLongClick] is set, the
+     * row is combined-clickable (Android's long-press).
+     */
+    onModifiedClick: ((shift: Boolean, ctrl: Boolean) -> Unit)? = null,
+    /** Long-press — Android's way into selection mode (#40). */
+    onLongClick: (() -> Unit)? = null,
 ) {
     val cadenceColors = LocalCadenceColors.current
     val density = LocalCadenceDensity.current
     val scheme = MaterialTheme.colorScheme
     val overdue = overdueStyle || task.isOverdue(today)
+
+    // The modifiers of the pointer currently over the row, tracked so a plain `clickable` can
+    // read them when the tap lands: `clickable` itself does not see the keyboard.
+    var shiftHeld by remember { mutableStateOf(false) }
+    var ctrlHeld by remember { mutableStateOf(false) }
+    val clickModifier = when {
+        onModifiedClick != null -> Modifier
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        shiftHeld = event.keyboardModifiers.isShiftPressed
+                        ctrlHeld = event.keyboardModifiers.isCtrlPressed || event.keyboardModifiers.isMetaPressed
+                    }
+                }
+            }
+            .clickable { onModifiedClick(shiftHeld, ctrlHeld) }
+        onLongClick != null -> Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)
+        else -> Modifier.clickable(onClick = onClick)
+    }
 
     val accent = when {
         overdue -> cadenceColors.overdueAccent
@@ -226,7 +292,7 @@ private fun TaskRowContent(
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(container)
-            .clickable(onClick = onClick)
+            .then(clickModifier)
             .defaultMinSize(minHeight = density.rowMinHeight)
             .padding(
                 start = 4.dp,

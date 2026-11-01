@@ -77,7 +77,7 @@ class DragModelTest {
         )
 
         // A band belongs to one project, so it cannot travel with the task.
-        assertEquals(DropIntent.MoveTask("t", "work", null), intent)
+        assertEquals(DropIntent.MoveTask(listOf("t"), "work", null), intent)
     }
 
     @Test
@@ -87,7 +87,7 @@ class DragModelTest {
             DropTarget.IntoProject(null),
         )
 
-        assertEquals(DropIntent.MoveTask("t", null, null), intent)
+        assertEquals(DropIntent.MoveTask(listOf("t"), null, null), intent)
     }
 
     @Test
@@ -98,7 +98,7 @@ class DragModelTest {
         )
 
         // Not a rejection: the band names its project, so the gesture is unambiguous.
-        assertEquals(DropIntent.MoveTask("t", "work", "band"), intent)
+        assertEquals(DropIntent.MoveTask(listOf("t"), "work", "band"), intent)
     }
 
     @Test
@@ -116,10 +116,99 @@ class DragModelTest {
         val dragged = DragPayload.TaskDrag(task("t", due = today))
 
         assertEquals(
-            DropIntent.RescheduleTask("t", today.plusDays(1)),
+            DropIntent.RescheduleTask(listOf("t"), today.plusDays(1)),
             drop(dragged, DropTarget.OntoDate(today.plusDays(1))),
         )
         assertEquals(DropIntent.Rejected, drop(dragged, DropTarget.OntoDate(today)))
+    }
+
+    // ── A selection of tasks (#40) ───────────────────────────────────────────────────
+
+    @Test
+    fun `a selection dropped on a project moves only the rows not already filed there`() {
+        val selection = DragPayload.TaskDrag(
+            listOf(task("a", projectId = "home"), task("b"), task("c", projectId = "work")),
+        )
+
+        val intent = drop(selection, DropTarget.IntoProject("work"))
+
+        // "c" is already in Work: rewriting it would be a write that changes nothing, so the
+        // intent carries the other two — and the drop still lights up, because something moves.
+        assertEquals(DropIntent.MoveTask(listOf("a", "b"), "work", null), intent)
+    }
+
+    @Test
+    fun `a selection dropped on the project every row is already in does nothing`() {
+        val selection = DragPayload.TaskDrag(
+            listOf(task("a", projectId = "home"), task("b", projectId = "home")),
+        )
+
+        assertEquals(DropIntent.Rejected, drop(selection, DropTarget.IntoProject("home")))
+    }
+
+    @Test
+    fun `a selection dropped on a tag labels only the rows missing it`() {
+        val selection = DragPayload.TaskDrag(
+            listOf(task("a", tagIds = listOf("errand")), task("b")),
+        )
+
+        assertEquals(
+            DropIntent.TagTask(listOf("b"), "errand"),
+            drop(selection, DropTarget.IntoTag("errand")),
+        )
+        assertEquals(
+            DropIntent.Rejected,
+            drop(DragPayload.TaskDrag(listOf(task("a", tagIds = listOf("errand")))), DropTarget.IntoTag("errand")),
+        )
+    }
+
+    @Test
+    fun `a selection dropped on a day reschedules only the rows with a different date`() {
+        val selection = DragPayload.TaskDrag(listOf(task("a", due = today), task("b")))
+
+        // Both rows move: "a" is due today, not tomorrow, so it is affected too; only a row
+        // already on the target day would be left out.
+        assertEquals(
+            DropIntent.RescheduleTask(listOf("a", "b"), today.plusDays(1)),
+            drop(selection, DropTarget.OntoDate(today.plusDays(1))),
+        )
+    }
+
+    @Test
+    fun `a selection dropped between two rows lands as one block in the order the rows were drawn`() {
+        val selection = DragPayload.TaskDrag(
+            listOf(task("b", projectId = "home"), task("d", projectId = "home")),
+        )
+
+        val intent = drop(
+            selection,
+            DropTarget.Between(OrderedList.Tasks("home"), index = 2, orderedIds = listOf("a", "b", "c", "d")),
+        )
+
+        // The gap at index 2 is the one just below "b": the block's own slots are removed before
+        // it lands, so [b, d] takes b's place and keeps its drawn order: a, b, d, c.
+        assertEquals(
+            DropIntent.ReorderTasks(listOf("a", "b", "d", "c")),
+            intent,
+        )
+    }
+
+    @Test
+    fun `a selection dropped between two rows of a list it is not in moves and orders in one intent`() {
+        val selection = DragPayload.TaskDrag(listOf(task("x"), task("y")))
+
+        val intent = drop(
+            selection,
+            DropTarget.Between(OrderedList.Tasks("home"), index = 1, orderedIds = listOf("a", "b", "c")),
+        )
+
+        assertEquals(
+            DropIntent.ReorderTasks(
+                listOf("a", "x", "y", "b", "c"),
+                move = DropIntent.MoveTask(listOf("x", "y"), "home", null),
+            ),
+            intent,
+        )
     }
 
     // ── Ordering ─────────────────────────────────────────────────────────────────────
@@ -164,7 +253,7 @@ class DragModelTest {
 
         // Filing it and then ordering it would order it against a list it was not yet in.
         assertEquals(
-            DropIntent.ReorderTasks(listOf("a", "t", "b"), move = DropIntent.MoveTask("t", "work", "band")),
+            DropIntent.ReorderTasks(listOf("a", "t", "b"), move = DropIntent.MoveTask(listOf("t"), "work", "band")),
             intent,
         )
     }
@@ -307,7 +396,7 @@ class DragModelTest {
 
         // The intent names one tag, not a list: the ViewModel adds it to what the task already
         // wears, so a drag can never be the thing that dropped a label.
-        assertEquals(DropIntent.TagTask("t", "errand"), intent)
+        assertEquals(DropIntent.TagTask(listOf("t"), "errand"), intent)
     }
 
     @Test
@@ -379,7 +468,7 @@ class DragModelTest {
         )
 
         assertEquals("band", hit?.first?.key)
-        assertEquals(DropIntent.MoveTask("t", "work", "band"), hit?.second)
+        assertEquals(DropIntent.MoveTask(listOf("t"), "work", "band"), hit?.second)
     }
 
     @Test

@@ -20,7 +20,7 @@ import de.andi1984.cadence.ui.CadenceUiState
 import de.andi1984.cadence.ui.TaskView
 import de.andi1984.cadence.ui.components.AppIcons
 import de.andi1984.cadence.ui.components.EmptyState
-import de.andi1984.cadence.ui.components.ScreenHeader
+import de.andi1984.cadence.ui.components.TaskListHeader
 import de.andi1984.cadence.ui.components.TaskRow
 import de.andi1984.cadence.ui.resources.Res
 import de.andi1984.cadence.ui.resources.*
@@ -71,7 +71,7 @@ fun TagDetailScreen(
             IconButton(onClick = onBack) {
                 Icon(AppIcons.ArrowBack, contentDescription = stringResource(Res.string.action_back))
             }
-            ScreenHeader(
+            TaskListHeader(
                 title = "@${tag.handle}",
                 subtitle = pluralStringResource(
                     Res.plurals.tags_task_count,

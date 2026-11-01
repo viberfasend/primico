@@ -5,6 +5,7 @@ import de.andi1984.cadence.data.CadenceRepository
 import de.andi1984.cadence.data.MAX_ATTACHMENTS_PER_TASK
 import de.andi1984.cadence.data.MAX_ATTACHMENT_BYTES
 import de.andi1984.cadence.data.RepositoryResult
+import de.andi1984.cadence.data.TaskBatchAction
 import de.andi1984.cadence.data.sync.CadenceSyncEngine
 import de.andi1984.cadence.data.sync.SignInResult
 import de.andi1984.cadence.data.sync.SyncFailure
@@ -712,17 +713,13 @@ class CadenceViewModel(
      */
     fun applyDropIntent(intent: DropIntent) {
         when (intent) {
-            is DropIntent.MoveTask -> moveTask(intent)
+            is DropIntent.MoveTask -> moveTasks(intent)
 
-            is DropIntent.RescheduleTask -> {
-                val task = state.value.tasks.firstOrNull { it.id == intent.taskId } ?: return
-                setDueDate(task, intent.date)
-            }
+            is DropIntent.RescheduleTask ->
+                applyToTasks(intent.taskIds.toSet(), TaskBatchAction.SetDueDate(intent.date))
 
-            is DropIntent.TagTask -> {
-                val task = state.value.tasks.firstOrNull { it.id == intent.taskId } ?: return
-                applyTag(task, intent.tagId)
-            }
+            is DropIntent.TagTask ->
+                applyToTasks(intent.taskIds.toSet(), TaskBatchAction.AddTag(intent.tagId))
 
             is DropIntent.NestProject -> {
                 val project = state.value.project(intent.projectId) ?: return
@@ -731,12 +728,10 @@ class CadenceViewModel(
 
             is DropIntent.ReorderTasks -> scope.launch {
                 intent.move?.let { move ->
-                    val task = state.value.tasks.firstOrNull { it.id == move.taskId }
-                    if (task != null) {
-                        repository.moveToProject(task, move.projectId)
-                        val moved = repository.taskById(move.taskId) ?: task
-                        repository.moveToSection(moved, move.sectionId)
-                    }
+                    repository.applyToTasks(
+                        move.taskIds,
+                        TaskBatchAction.MoveToProject(move.projectId, move.sectionId),
+                    )
                 }
                 repository.reorderTasks(intent.orderedIds)
             }
@@ -751,15 +746,60 @@ class CadenceViewModel(
         }
     }
 
-    private fun moveTask(move: DropIntent.MoveTask) = scope.launch {
-        val task = state.value.tasks.firstOrNull { it.id == move.taskId } ?: return@launch
-        repository.moveToProject(task, move.projectId)
-        if (move.sectionId != null) {
-            // Read the row back: `moveToProject` cleared its section, and moving the snapshot
-            // would write the section onto a task that still names its old project.
-            val moved = repository.taskById(move.taskId) ?: return@launch
-            repository.moveToSection(moved, move.sectionId)
+    private fun moveTasks(move: DropIntent.MoveTask) = scope.launch {
+        // One write for the whole dragged set: project and band land together, so the section is
+        // never written onto a row that still names its old project (the reason the single-row
+        // version used to read the row back between the two moves).
+        repository.applyToTasks(
+            move.taskIds,
+            TaskBatchAction.MoveToProject(move.projectId, move.sectionId),
+        )
+    }
+
+    /**
+     * Applies [action] to every row in [ids] — what the selection action bar calls (#40). One
+     * repository write, one sync tick and one undo entry for the whole set.
+     *
+     * A delete is deferred like any other: the rows vanish from every list at once and the
+     * tombstone write waits out the undo window as a single [UndoAction.DeleteTasks]. Anything
+     * else lands immediately and says so with a counted snackbar ("12 tasks completed") — the
+     * undo machine is for destructive writes, and a batch complete is not one.
+     */
+    fun applyToTasks(ids: Set<String>, action: TaskBatchAction) = scope.launch {
+        if (ids.isEmpty()) return@launch
+        when (action) {
+            TaskBatchAction.Delete -> {
+                val snapshot = state.value
+                val tasks = ids.mapNotNull { id -> snapshot.tasks.firstOrNull { it.id == id } }
+                    .filterNot { it.id in snapshot.pendingDeleteIds }
+                if (tasks.isEmpty()) return@launch
+                val subtaskIds = tasks.flatMap { snapshot.subtasks(it.id) }.map { it.id }
+                undoSlot.offer(
+                    UndoAction.DeleteTasks(tasks, subtaskIds),
+                    count = tasks.size + subtaskIds.size,
+                )
+            }
+            else -> {
+                val deleted = repository.applyToTasks(ids.toList(), action)
+                deleted.forEach { reminderScheduler.cancel(it) }
+                showBatchSnackbar(action, ids.size)
+            }
         }
+    }
+
+    /** The counted "N tasks …" line a batch action reports — informational, no undo. */
+    private fun showBatchSnackbar(action: TaskBatchAction, count: Int) {
+        val plural = when (action) {
+            TaskBatchAction.Complete -> Res.plurals.batch_tasks_completed
+            TaskBatchAction.Reopen -> Res.plurals.batch_tasks_reopened
+            TaskBatchAction.Delete -> Res.plurals.undo_items_deleted
+            is TaskBatchAction.MoveToProject -> Res.plurals.batch_tasks_moved
+            is TaskBatchAction.SetDueDate -> Res.plurals.batch_tasks_rescheduled
+            is TaskBatchAction.SetPriority -> Res.plurals.batch_tasks_priority_set
+            is TaskBatchAction.AddTag -> Res.plurals.batch_tasks_tag_added
+            is TaskBatchAction.RemoveTag -> Res.plurals.batch_tasks_tag_removed
+        }
+        undoSlot.show(SnackbarMessage.Counted(plural = plural, count = count, args = listOf(count)))
     }
 
     fun rescheduleOverdue() = scope.launch {
@@ -1211,6 +1251,10 @@ class CadenceViewModel(
                 action.subtasks.forEach { reminderScheduler.cancel(it.id) }
                 reminderScheduler.cancel(action.task.id)
                 repository.deleteTask(action.task.id)
+            }
+            is UndoAction.DeleteTasks -> {
+                action.ids.forEach { reminderScheduler.cancel(it) }
+                repository.applyToTasks(action.ids.toList(), TaskBatchAction.Delete)
             }
             // The ids the repository reports, exactly like the wipe below: it is the one that
             // knows the whole set, and a task list the UI filtered is not it.

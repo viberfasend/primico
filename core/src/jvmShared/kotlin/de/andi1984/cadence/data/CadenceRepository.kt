@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.InputStream
@@ -90,6 +92,21 @@ class CadenceRepository(
     val tags: Flow<List<Tag>> = tagStore.observeAll()
 
     val attachments: Flow<List<Attachment>> = attachmentStore.observeAll()
+
+    /**
+     * Serializes the two blob critical sections against each other: filing a row that names a
+     * hash ([addFileAttachment]/[relocateAttachment] — store the bytes, then insert/update the
+     * row) against reading which hashes are still referenced and deleting the rest ([reclaim],
+     * [sweepOrphanBlobs]).
+     *
+     * Blobs are content-addressed, so a fresh row can name a hash a concurrent reclaim is about
+     * to delete; without this gate the read-then-delete window lets the blob be deleted out from
+     * under the row that just claimed it, and the attachment renders as missing. Either the
+     * reclaim sees the new row and keeps the blob, or it deletes first and the add re-stores the
+     * bytes — both orders leave the row and its blob in agreement. Not reentrant, so callers
+     * holding it use [reclaimLocked] rather than [reclaim].
+     */
+    private val blobGate = Mutex()
 
     private val _localWrites = MutableSharedFlow<Unit>(
         extraBufferCapacity = 1,
@@ -791,13 +808,16 @@ class CadenceRepository(
     ): AddAttachmentResult {
         val existing = attachmentStore.forTask(taskId)
         if (existing.size >= MAX_ATTACHMENTS_PER_TASK) return AddAttachmentResult.LimitReached
-        // Every other port dispatches its own I/O; [BlobStore] is a plain `java.io` class, and
-        // this is a copy of up to 25 MB — on Android the ViewModel's scope is the main thread, so
-        // an undispatched call here is a frozen UI for the length of the file.
-        val stored = withContext(ioDispatcher) { blobStore.store(source, MAX_ATTACHMENT_BYTES) }
-        return when (val result = stored) {
-            is StoreResult.Ok -> {
-                val id = UuidV7.random()
+        val id = UuidV7.random()
+        // The copy and the insert that names its hash are one critical section under [blobGate]:
+        // a concurrent [reclaim] deciding the hash is garbage must not run between them, or it
+        // deletes the blob this row is about to claim.
+        val stored = blobGate.withLock {
+            // Every other port dispatches its own I/O; [BlobStore] is a plain `java.io` class, and
+            // this is a copy of up to 25 MB — on Android the ViewModel's scope is the main thread, so
+            // an undispatched call here is a frozen UI for the length of the file.
+            val result = withContext(ioDispatcher) { blobStore.store(source, MAX_ATTACHMENT_BYTES) }
+            if (result is StoreResult.Ok) {
                 attachmentStore.insert(
                     Attachment(
                         id = id,
@@ -811,8 +831,11 @@ class CadenceRepository(
                         sortOrder = existing.size,
                     ),
                 )
-                AddAttachmentResult.Success(id)
             }
+            result
+        }
+        return when (val result = stored) {
+            is StoreResult.Ok -> AddAttachmentResult.Success(id)
             StoreResult.TooLarge -> AddAttachmentResult.TooLarge
             is StoreResult.Failed -> AddAttachmentResult.Failed(result.cause)
         }
@@ -871,24 +894,36 @@ class CadenceRepository(
     suspend fun relocateAttachment(id: String, source: InputStream): AddAttachmentResult {
         val existing = attachmentStore.byId(id) ?: return AddAttachmentResult.ValidationError
         if (existing.kind != AttachmentKind.FILE) return AddAttachmentResult.ValidationError
-        val stored = withContext(ioDispatcher) { blobStore.store(source, MAX_ATTACHMENT_BYTES) }
-        return when (val result = stored) {
-            is StoreResult.Ok -> {
-                attachmentStore.update(
-                    existing.copy(sha256 = result.sha256, sizeBytes = result.sizeBytes),
-                )
-                val previous = existing.sha256
-                if (previous != null && previous != result.sha256) reclaim(listOf(previous))
-                AddAttachmentResult.Success(id)
+        // Same critical section as [addFileAttachment]: the copy, the row now naming the new
+        // hash, and the reclaim of the hash it stopped naming all under [blobGate], so a
+        // concurrent reclaim can neither delete the new blob before the row names it nor miss
+        // the old one after it stopped.
+        return blobGate.withLock {
+            val stored = withContext(ioDispatcher) { blobStore.store(source, MAX_ATTACHMENT_BYTES) }
+            when (val result = stored) {
+                is StoreResult.Ok -> {
+                    attachmentStore.update(
+                        existing.copy(sha256 = result.sha256, sizeBytes = result.sizeBytes),
+                    )
+                    val previous = existing.sha256
+                    if (previous != null && previous != result.sha256) reclaimLocked(listOf(previous))
+                    AddAttachmentResult.Success(id)
+                }
+                StoreResult.TooLarge -> AddAttachmentResult.TooLarge
+                is StoreResult.Failed -> AddAttachmentResult.Failed(result.cause)
             }
-            StoreResult.TooLarge -> AddAttachmentResult.TooLarge
-            is StoreResult.Failed -> AddAttachmentResult.Failed(result.cause)
         }
     }
 
     /** A blob is garbage the moment no row names it — the attachments table is the only
      *  refcount, read back here rather than trusted from a stored counter. */
     private suspend fun reclaim(hashes: List<String>) {
+        if (hashes.isEmpty()) return
+        blobGate.withLock { reclaimLocked(hashes) }
+    }
+
+    /** [reclaim] with [blobGate] already held — for callers that filed a row under the same lock. */
+    private suspend fun reclaimLocked(hashes: List<String>) {
         if (hashes.isEmpty()) return
         val kept = attachmentStore.stillReferenced(hashes).toSet()
         withContext(ioDispatcher) { blobStore.deleteAll(hashes.toSet() - kept) }
@@ -897,11 +932,14 @@ class CadenceRepository(
     /**
      * Removes anything on disk no attachment row names. Meant to run once at cold start, to
      * heal a leak left by a process killed mid-copy, and after [restore], where a full replace
-     * makes reclaiming one hash at a time meaningless.
+     * makes reclaiming one hash at a time meaningless. The reference read and the sweep share
+     * [blobGate] with the filing paths for the same reason [reclaim] does.
      */
     suspend fun sweepOrphanBlobs() {
-        val referenced = attachmentStore.referencedHashes().toSet()
-        withContext(ioDispatcher) { blobStore.sweepOrphans(referenced) }
+        blobGate.withLock {
+            val referenced = attachmentStore.referencedHashes().toSet()
+            withContext(ioDispatcher) { blobStore.sweepOrphans(referenced) }
+        }
     }
 
     // ── Backup ─────────────────────────────────────────────────────────────────────

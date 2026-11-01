@@ -4,6 +4,7 @@ import java.io.File
 import java.io.InputStream
 import java.security.DigestInputStream
 import java.security.MessageDigest
+import kotlinx.coroutines.CancellationException
 
 /**
  * Content-addressed storage for attachment bytes, keyed by their own SHA-256.
@@ -66,6 +67,12 @@ class BlobStore(private val root: File, private val tmp: File) {
                 }
             }
             StoreResult.Ok(sha256, total)
+        } catch (e: CancellationException) {
+            // Cancellation is not a failure of the copy — unwind so the caller's coroutine
+            // cancels normally instead of being handed a StoreResult.Failed to report as an
+            // error. Same pattern as the repository's and the sync engine's catch blocks.
+            staged.delete()
+            throw e
         } catch (t: Throwable) {
             staged.delete()
             StoreResult.Failed(t)

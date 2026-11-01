@@ -2,14 +2,17 @@ package de.andi1984.cadence
 
 import de.andi1984.cadence.data.BlobStore
 import de.andi1984.cadence.data.StoreResult
+import kotlinx.coroutines.CancellationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.ByteArrayInputStream
+import java.io.InputStream
 import java.security.MessageDigest
 
 /**
@@ -48,6 +51,21 @@ class BlobStoreTest {
         val result = blobStore.store(ByteArrayInputStream(bytes), maxBytes = 1024)
 
         assertTrue(result is StoreResult.TooLarge)
+        val leftovers = folder.root.walkTopDown().filter { it.isFile }.toList()
+        assertTrue(leftovers.isEmpty())
+    }
+
+    @Test
+    fun `a cancellation during the copy unwinds instead of becoming a StoreResult failure`() {
+        val blobStore = store()
+        val cancelling = object : InputStream() {
+            override fun read(): Int = throw CancellationException("scope torn down mid-copy")
+        }
+
+        assertThrows(CancellationException::class.java) {
+            blobStore.store(cancelling, maxBytes = 1024)
+        }
+
         val leftovers = folder.root.walkTopDown().filter { it.isFile }.toList()
         assertTrue(leftovers.isEmpty())
     }

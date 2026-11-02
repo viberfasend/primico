@@ -40,7 +40,7 @@ jobs:
         # alike — so there is no actions/cache step beside it. There used to be one, restoring
         # ~/.gradle/caches/modules-* over the top of what this had already restored, with a
         # `transforms-` glob that matched nothing.
-        uses: gradle/actions/setup-gradle@v5
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
@@ -103,7 +103,7 @@ jobs:
           java-version: '17'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v5
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew

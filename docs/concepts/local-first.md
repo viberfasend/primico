@@ -22,6 +22,11 @@ merges instead of replacing.
 - **The account is optional and signed in from Settings.** Without one the sync engine makes no
   request at all. A build compiled without sync endpoints does not even offer the sign-in form
   (see [Sync](sync.md#a-build-without-a-server)).
+- **The one opt-in network call beside sync is the weather.** With the outdoor section switched on
+  in Settings (off by default), the app asks [Open-Meteo](https://open-meteo.com) — free, no API
+  key — about once an hour for the city or coordinates named there, and that location string is
+  the only thing sent. Unknown weather hides the section; nothing weather-related is persisted.
+  See [ADR 0007](../adr/0007-outdoor-section-weather.md).
 - **A fresh install starts empty.** There is no seed data. Screenshots and demos are built by
   importing a backup file.
 

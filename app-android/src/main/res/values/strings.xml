@@ -30,6 +30,7 @@
 
     <string name="widget_overdue">Overdue</string>
     <string name="widget_due_today">Today</string>
+    <string name="widget_outdoor">Outdoor</string>
     <string name="widget_no_due_date">No date</string>
     <string name="widget_done">Done</string>
     <string name="widget_add_task">Add task</string>

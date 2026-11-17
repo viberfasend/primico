@@ -222,6 +222,7 @@ private fun listEntries(context: Context, list: TaskList, today: LocalDate): Lis
 private fun bandLabel(context: Context, heading: BandHeading, today: LocalDate): String = when (heading) {
     BandHeading.Overdue -> context.getString(R.string.widget_overdue)
     BandHeading.None -> context.getString(R.string.widget_due_today)
+    BandHeading.Outdoor -> context.getString(R.string.widget_outdoor)
     BandHeading.Everything -> context.getString(R.string.widget_band_all)
     BandHeading.Ungrouped -> context.getString(R.string.widget_band_ungrouped)
     is BandHeading.Named -> heading.section.name

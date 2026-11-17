@@ -247,6 +247,10 @@ class SqlDelightTagStore(
         queries.selectAll(mapper = ::toTag).executeAsList()
     }
 
+    override suspend fun byIdIncludingDeleted(id: String): Tag? = withContext(ioDispatcher) {
+        queries.selectByIdIncludingDeleted(id, mapper = ::toTag).executeAsOneOrNull()
+    }
+
     override suspend fun insert(tag: Tag) = withContext(ioDispatcher) {
         database.transaction { queries.upsertRow(tag) }
     }

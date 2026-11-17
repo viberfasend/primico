@@ -41,6 +41,10 @@ class SharedPrefsSettingsStore(context: Context) : SettingsStore {
             ?.split(",")
             ?.mapNotNull { it.toIntOrNull() }
             ?: emptyList(),
+        // Off by default on both shells: the weather call is the one non-sync network traffic
+        // the app can make, so it waits for an explicit opt-in (ADR 0007, decision 4).
+        weatherEnabled = prefs.getBoolean(KEY_WEATHER_ENABLED, false),
+        weatherLocation = prefs.getString(KEY_WEATHER_LOCATION, "") ?: "",
     )
 
     private fun persist(settings: CadenceSettings) {
@@ -51,6 +55,8 @@ class SharedPrefsSettingsStore(context: Context) : SettingsStore {
             .putBoolean(KEY_SHOW_COMPLETED, settings.showCompleted)
             .putBoolean(KEY_REMINDERS, settings.remindersEnabled)
             .putString(KEY_REMINDER_LEAD_MINUTES, settings.reminderLeadMinutes.joinToString(","))
+            .putBoolean(KEY_WEATHER_ENABLED, settings.weatherEnabled)
+            .putString(KEY_WEATHER_LOCATION, settings.weatherLocation)
             .apply()
         _state.value = settings
     }
@@ -69,6 +75,12 @@ class SharedPrefsSettingsStore(context: Context) : SettingsStore {
     override fun setReminderLeadMinutes(minutes: List<Int>) =
         persist(_state.value.copy(reminderLeadMinutes = minutes))
 
+    override fun setWeatherEnabled(enabled: Boolean) =
+        persist(_state.value.copy(weatherEnabled = enabled))
+
+    override fun setWeatherLocation(location: String) =
+        persist(_state.value.copy(weatherLocation = location))
+
     private companion object {
         const val KEY_THEME = "theme"
         const val KEY_DENSITY = "density"
@@ -76,5 +88,7 @@ class SharedPrefsSettingsStore(context: Context) : SettingsStore {
         const val KEY_SHOW_COMPLETED = "showCompleted"
         const val KEY_REMINDERS = "remindersEnabled"
         const val KEY_REMINDER_LEAD_MINUTES = "reminderLeadMinutes"
+        const val KEY_WEATHER_ENABLED = "weatherEnabled"
+        const val KEY_WEATHER_LOCATION = "weatherLocation"
     }
 }

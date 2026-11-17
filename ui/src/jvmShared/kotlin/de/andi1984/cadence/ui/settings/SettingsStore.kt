@@ -47,6 +47,23 @@ data class CadenceSettings(
      * something nobody asked for. The task detail's job is choosing the reminders themselves.
      */
     val reminderLeadMinutes: List<Int> = emptyList(),
+    /**
+     * Whether the Today screen may show its outdoor section at all — **off by default**, so the
+     * app makes no weather request unless the user asked for one (ADR 0007, decision 4).
+     *
+     * Per-device and out of sync like theme and density: it switches a network call on this
+     * machine, which is not a fact about the task list (ADR 0001, decision 9).
+     */
+    val weatherEnabled: Boolean = false,
+    /**
+     * Where today's weather is read for: a city name ("Berlin") or `"lat,lon"`. Empty means the
+     * outdoor section stays off even when [weatherEnabled] is on — and it is what keeps the
+     * feature permission-free, since no device location is ever read.
+     *
+     * This string is the only thing sent to Open-Meteo, about once an hour while the app runs and
+     * the section is on.
+     */
+    val weatherLocation: String = "",
 )
 
 /**
@@ -71,4 +88,8 @@ interface SettingsStore {
     fun setRemindersEnabled(enabled: Boolean)
 
     fun setReminderLeadMinutes(minutes: List<Int>)
+
+    fun setWeatherEnabled(enabled: Boolean)
+
+    fun setWeatherLocation(location: String)
 }

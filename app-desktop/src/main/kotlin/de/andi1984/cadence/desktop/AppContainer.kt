@@ -7,6 +7,7 @@ import de.andi1984.cadence.desktop.data.DesktopBackupFilePicker
 import de.andi1984.cadence.desktop.data.DesktopBackupIo
 import de.andi1984.cadence.desktop.data.DesktopReminderScheduler
 import de.andi1984.cadence.desktop.data.DesktopSettingsStore
+import de.andi1984.cadence.desktop.data.DesktopWeatherGateway
 import de.andi1984.cadence.desktop.data.createReminderTrayIcon
 import de.andi1984.cadence.desktop.platform.PlatformDirs
 import de.andi1984.cadence.ui.ViewModelAdapters
@@ -72,13 +73,18 @@ class AppContainer {
         labelFor = { title, source -> runBlocking { notificationLabel(title, source) } },
     )
 
-    /** Handed to [de.andi1984.cadence.ui.cadenceViewModel] by `main()` so the seven-argument
+    /** The weather call for Today's outdoor section — `:core`'s client, since HTTPS+JSON is not a
+     *  platform difference; a port only so the ViewModel's tests can fake it (ADR 0007). */
+    val weatherGateway = DesktopWeatherGateway()
+
+    /** Handed to [de.andi1984.cadence.ui.cadenceViewModel] by `main()` so the eight-argument
      *  `CadenceViewModel` constructor is written once, in `:ui`. */
     val viewModelAdapters = ViewModelAdapters(
         settingsStore = settingsStore,
         reminderScheduler = reminderScheduler,
         backupGateway = backupIo,
         attachmentOpener = attachmentOpener,
+        weatherGateway = weatherGateway,
     )
 
     /**

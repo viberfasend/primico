@@ -62,6 +62,7 @@ class CadenceViewModelCrudTest {
     private val settings = FakeSettingsStore()
     private val backupGateway = FakeBackupGateway()
     private val attachmentOpener = RecordingAttachmentOpener()
+    private val weatherGateway = FakeWeatherGateway()
 
     private fun TestScope.viewModel(): CadenceViewModel {
         val viewModel = CadenceViewModel(
@@ -70,6 +71,7 @@ class CadenceViewModelCrudTest {
             reminderScheduler = reminders,
             backupGateway = backupGateway,
             attachmentOpener = attachmentOpener,
+            weatherGateway = weatherGateway,
             syncEngine = CadenceSyncEngine(FakeSyncStore(), backgroundScope),
             scope = backgroundScope,
         )
@@ -885,6 +887,7 @@ class CadenceViewModelCrudTest {
             reminderScheduler = reminders,
             backupGateway = backupGateway,
             attachmentOpener = attachmentOpener,
+            weatherGateway = weatherGateway,
             syncEngine = syncEngine,
             scope = backgroundScope,
         )

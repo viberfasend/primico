@@ -30,6 +30,7 @@ import de.andi1984.cadence.ui.platform.AttachmentOpener
 import de.andi1984.cadence.ui.platform.BackupTarget
 import de.andi1984.cadence.ui.platform.PickedFile
 import de.andi1984.cadence.ui.platform.ReminderScheduler
+import de.andi1984.cadence.ui.platform.WeatherGateway
 import de.andi1984.cadence.ui.resources.Res
 import de.andi1984.cadence.ui.resources.*
 import de.andi1984.cadence.ui.undo.UndoAction
@@ -52,7 +53,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
 import java.io.File
@@ -91,6 +94,15 @@ sealed class SnackbarMessage {
 /** A row in a task list — a root task, or a subtask shown inline beneath an expanded one. */
 data class TaskListRow(val task: Task, val isSubtaskRow: Boolean)
 
+/**
+ * Today's coarse weather as the UI sees it (ADR 0007).
+ *
+ * [todayDry] is null unless the weather was actually fetched for today — disabled, blank location
+ * or a failed fetch all read as null, and null is never drawn as a good-weather day: the outdoor
+ * section exists only when this is `true`.
+ */
+data class WeatherUiState(val todayDry: Boolean? = null)
+
 data class CadenceUiState(
     val tasks: List<Task> = emptyList(),
     val projects: List<Project> = emptyList(),
@@ -111,6 +123,8 @@ data class CadenceUiState(
     val backupOutcome: BackupOutcome? = null,
     /** Sign-in state and where the last sync round got to. */
     val sync: SyncUiState = SyncUiState(),
+    /** Today's coarse weather — null-safe, see [WeatherUiState]. */
+    val weather: WeatherUiState = WeatherUiState(),
     /** Current snackbar message to display, if any. */
     val snackbarMessage: SnackbarMessage? = null,
     /**
@@ -400,11 +414,15 @@ class CadenceViewModel(
     /** Where an attachment goes when it is tapped. A port for the same reason [backupGateway] is:
      *  "open this with something else" is an intent on Android and `java.awt.Desktop` here. */
     private val attachmentOpener: AttachmentOpener,
+    /** Today's weather for the outdoor section — the one non-sync network call, faked in tests. */
+    private val weatherGateway: WeatherGateway,
     private val syncEngine: CadenceSyncEngine,
     private val scope: CoroutineScope,
 ) {
 
     private val backupOutcome = MutableStateFlow<BackupOutcome?>(null)
+
+    private val weather = MutableStateFlow(WeatherUiState())
 
     /**
      * The undo/deferred-delete machine (#114) — see [UndoSlot]'s own doc for the two rules it
@@ -476,7 +494,8 @@ class CadenceViewModel(
         settingsStore.state,
         syncState,
         transient,
-    ) { r, settings, sync, t ->
+        weather,
+    ) { r, settings, sync, t, w ->
         CadenceUiState(
             // Pending-deletes are hidden here, at the source, so every list and every direct
             // read of `state.tasks` drops them at once — the delete is not in the database yet,
@@ -507,6 +526,7 @@ class CadenceViewModel(
             settings = settings,
             backupOutcome = t.backup,
             sync = sync,
+            weather = w,
             snackbarMessage = t.snackbar,
         )
     }.stateIn(
@@ -520,6 +540,7 @@ class CadenceViewModel(
 
     init {
         startWriteDebounce()
+        startWeatherPoll()
 
         // Reminders reconcile on every emission, and on whether this device fires them at all:
         // with the task list shared between two devices, both would otherwise go off for the same
@@ -1136,6 +1157,10 @@ class CadenceViewModel(
 
     fun setReminderLeadMinutes(minutes: List<Int>) = settingsStore.setReminderLeadMinutes(minutes)
 
+    fun setWeatherEnabled(enabled: Boolean) = settingsStore.setWeatherEnabled(enabled)
+
+    fun setWeatherLocation(location: String) = settingsStore.setWeatherLocation(location)
+
     // ── Backup ───────────────────────────────────────────────────────────────────────
 
     fun exportBackup(target: BackupTarget) = scope.launch {
@@ -1216,6 +1241,52 @@ class CadenceViewModel(
     @OptIn(FlowPreview::class)
     private fun startWriteDebounce() = scope.launch {
         repository.localWrites.debounce(WRITE_DEBOUNCE.toMillis()).collect { syncEngine.syncOnce() }
+    }
+
+    // ── Weather ─────────────────────────────────────────────────────────────
+
+    /**
+     * Fetches today's coarse weather at start and then about hourly while the app runs, and only
+     * when the feature is on and a location is set (ADR 0007, decision 3). Daily data does not
+     * need more than that, and no forecast is persisted: a coarse flag is re-fetchable, and the
+     * last known value is kept in memory across failures within the session.
+     *
+     * The settings flow and an hourly ticker are combined rather than one collected inside the
+     * other: a `delay` loop inside `collect` would conflate a settings change until the loop
+     * ended, and flipping the feature on in Settings has to fetch *now*. Either source emitting
+     * runs the same check — off or blank resets [weather] to unknown at once, otherwise one fetch.
+     */
+    private fun startWeatherPoll() = scope.launch {
+        val hourly = flow {
+            while (true) {
+                emit(Unit)
+                delay(WEATHER_REFRESH_INTERVAL.toMillis())
+            }
+        }
+        combine(settingsStore.state, hourly) { settings, _ -> settings }
+            .collect { settings ->
+                if (!settings.weatherEnabled || settings.weatherLocation.isBlank()) {
+                    weather.value = WeatherUiState()
+                } else {
+                    refreshWeather(settings.weatherLocation)
+                }
+            }
+    }
+
+    /**
+     * One fetch. A null answer — the gateway failed or does not know the location — keeps the
+     * last known value rather than clearing it, and the initial null stays null: unknown weather
+     * is never shown as good weather.
+     */
+    private suspend fun refreshWeather(location: String) {
+        val day = try {
+            weatherGateway.today(location)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        } ?: return
+        weather.value = WeatherUiState(todayDry = day.dry)
     }
 
     /** Signs out. Nothing local is deleted — the database on this device is the source of
@@ -1307,5 +1378,12 @@ class CadenceViewModel(
          * if the user walks away.
          */
         val UNDO_WINDOW: Duration = Duration.ofSeconds(5)
+
+        /**
+         * How often the weather is re-fetched while the app runs. Daily data does not change
+         * faster, and the call is the app's one opt-in non-sync request — hourly is frequent
+         * enough to cross midnight and rare enough to stay polite.
+         */
+        val WEATHER_REFRESH_INTERVAL: Duration = Duration.ofHours(1)
     }
 }

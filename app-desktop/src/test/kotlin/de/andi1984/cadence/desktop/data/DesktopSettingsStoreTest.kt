@@ -42,6 +42,10 @@ class DesktopSettingsStoreTest {
         // Empty on both shells: a fresh install, or an existing task that already has a due time,
         // must not suddenly start notifying for something nobody configured.
         assertEquals(emptyList<Int>(), state.reminderLeadMinutes)
+        // Off and empty on both shells: the weather call is the one non-sync network traffic the
+        // app can make, so it waits for an explicit opt-in.
+        assertFalse(state.weatherEnabled)
+        assertEquals("", state.weatherLocation)
     }
 
     @Test
@@ -64,6 +68,8 @@ class DesktopSettingsStoreTest {
             setShowCompleted(false)
             setRemindersEnabled(true)
             setReminderLeadMinutes(listOf(20, 10, 5))
+            setWeatherEnabled(true)
+            setWeatherLocation("Berlin")
             // The setters answer before the file does (#104), so anything reading the file back
             // has to wait for it — which is the same call `main()` makes on the way out.
             flush()
@@ -76,6 +82,8 @@ class DesktopSettingsStoreTest {
         assertFalse(reopened.showCompleted)
         assertTrue(reopened.remindersEnabled)
         assertEquals(listOf(20, 10, 5), reopened.reminderLeadMinutes)
+        assertTrue(reopened.weatherEnabled)
+        assertEquals("Berlin", reopened.weatherLocation)
     }
 
     @Test

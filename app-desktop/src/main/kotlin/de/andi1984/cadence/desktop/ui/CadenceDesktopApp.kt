@@ -413,6 +413,8 @@ private fun RouteContent(
             onClearBackupOutcome = viewModel::clearBackupOutcome,
             onRemindersChange = viewModel::setRemindersEnabled,
             onReminderLeadMinutesChange = viewModel::setReminderLeadMinutes,
+            onWeatherEnabledChange = viewModel::setWeatherEnabled,
+            onWeatherLocationChange = viewModel::setWeatherLocation,
             onSignIn = viewModel::signIn,
             onSyncNow = { viewModel.syncNow() },
             onSignOut = { viewModel.signOut() },

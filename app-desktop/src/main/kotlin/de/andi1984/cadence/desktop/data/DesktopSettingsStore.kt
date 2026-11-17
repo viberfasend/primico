@@ -35,6 +35,10 @@ private data class SettingsFile(
     // this file rather than in the shared data class precisely because it differs per shell.
     val remindersEnabled: Boolean = false,
     val reminderLeadMinutes: List<Int> = emptyList(),
+    // Off by default, same as CadenceSettings itself: the weather call is opt-in (ADR 0007).
+    // `ignoreUnknownKeys` on read means an older file simply carries the defaults.
+    val weatherEnabled: Boolean = false,
+    val weatherLocation: String = "",
 )
 
 /**
@@ -109,6 +113,8 @@ class DesktopSettingsStore(
             showCompleted = onDisk.showCompleted,
             remindersEnabled = onDisk.remindersEnabled,
             reminderLeadMinutes = onDisk.reminderLeadMinutes,
+            weatherEnabled = onDisk.weatherEnabled,
+            weatherLocation = onDisk.weatherLocation,
         )
     }
 
@@ -137,6 +143,8 @@ class DesktopSettingsStore(
             showCompleted = settings.showCompleted,
             remindersEnabled = settings.remindersEnabled,
             reminderLeadMinutes = settings.reminderLeadMinutes,
+            weatherEnabled = settings.weatherEnabled,
+            weatherLocation = settings.weatherLocation,
         )
         runCatching {
             tmp.parentFile?.mkdirs()
@@ -179,4 +187,10 @@ class DesktopSettingsStore(
 
     override fun setReminderLeadMinutes(minutes: List<Int>) =
         persist(_state.value.copy(reminderLeadMinutes = minutes))
+
+    override fun setWeatherEnabled(enabled: Boolean) =
+        persist(_state.value.copy(weatherEnabled = enabled))
+
+    override fun setWeatherLocation(location: String) =
+        persist(_state.value.copy(weatherLocation = location))
 }

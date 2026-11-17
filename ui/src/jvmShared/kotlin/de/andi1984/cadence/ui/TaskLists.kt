@@ -3,6 +3,7 @@ package de.andi1984.cadence.ui
 import de.andi1984.cadence.domain.model.Section
 import de.andi1984.cadence.domain.model.Tag
 import de.andi1984.cadence.domain.model.Task
+import de.andi1984.cadence.domain.model.WellKnownTags
 import de.andi1984.cadence.domain.model.withoutSupersededOccurrences
 import java.time.LocalDate
 import java.time.ZoneId
@@ -16,7 +17,7 @@ import java.time.ZoneId
  */
 sealed interface TaskView {
 
-    /** Overdue above, due today below — the two bands the Today screen is made of. */
+    /** Overdue above, due today below, and on a known-dry day the outdoor band underneath. */
     data object Today : TaskView
 
     /** Everything with no project, parents speaking for their steps. */
@@ -55,6 +56,12 @@ sealed interface BandHeading {
 
     /** The overdue block: `project_section_overdue`, drawn in the error colour. */
     data object Overdue : BandHeading
+
+    /**
+     * Open `@outdoor` tasks on a day known not to rain — `today_section_outdoor`, drawn below
+     * due today on Today. Present only when [CadenceUiState.weather] says the day is dry.
+     */
+    data object Outdoor : BandHeading
 
     /** Everything that is not overdue, under `project_section_all`. */
     data object Everything : BandHeading
@@ -212,10 +219,27 @@ private fun CadenceUiState.todayList(today: LocalDate): TaskList {
     val dueToday = tasks
         .filter { it.isDueOn(today) && (settings.showCompleted || !it.isDone) }
         .sortedFor(mode)
+    // The outdoor band exists only on a day *known* to be dry — unknown weather is never "good"
+    // — and lists what else could be done outside: open outdoor tasks that are not already on
+    // today's plate, so the section never duplicates the overdue or due-today bands.
+    val onPlate = (overdue.asSequence() + dueToday.asSequence()).mapTo(mutableSetOf()) { it.id }
+    val outdoor = if (weather.todayDry == true) {
+        tasks
+            .withoutSupersededOccurrences()
+            .filter {
+                WellKnownTags.OUTDOOR in it.tagIds &&
+                    it.id !in onPlate &&
+                    (settings.showCompleted || !it.isDone)
+            }
+            .sortedFor(mode)
+    } else {
+        emptyList()
+    }
     return TaskList(
         buildList {
             if (overdue.isNotEmpty()) add(band(BandHeading.Overdue, overdue, key = "overdue"))
             add(band(BandHeading.None, dueToday, key = "due-today"))
+            if (outdoor.isNotEmpty()) add(band(BandHeading.Outdoor, outdoor, key = "outdoor"))
         },
     )
 }

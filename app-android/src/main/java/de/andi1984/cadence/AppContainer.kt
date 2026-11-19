@@ -12,6 +12,7 @@ import de.andi1984.cadence.data.db.DatabaseDriverFactory
 import de.andi1984.cadence.data.settings.SharedPrefsSettingsStore
 import de.andi1984.cadence.reminders.AlarmReminderScheduler
 import de.andi1984.cadence.ui.ViewModelAdapters
+import de.andi1984.cadence.weather.AndroidWeatherGateway
 import de.andi1984.cadence.widget.WidgetUpdater
 import de.andi1984.cadence.widget.widgetUiStateFlow
 import kotlinx.coroutines.launch
@@ -41,13 +42,18 @@ class AppContainer(context: Context) {
      *  launcher can only be created in a composition. */
     val attachmentOpener = AndroidAttachmentOpener(context)
 
+    /** The weather call for Today's outdoor section — `:core`'s client, since HTTPS+JSON is not a
+     *  platform difference; a port only so the ViewModel's tests can fake it (ADR 0007). */
+    val weatherGateway = AndroidWeatherGateway()
+
     /** Handed to [de.andi1984.cadence.ui.cadenceViewModel] by [ui.CadenceViewModelHost] so the
-     *  seven-argument `CadenceViewModel` constructor is written once, in `:ui`. */
+     *  eight-argument `CadenceViewModel` constructor is written once, in `:ui`. */
     val viewModelAdapters = ViewModelAdapters(
         settingsStore = settingsStore,
         reminderScheduler = reminderScheduler,
         backupGateway = backupIo,
         attachmentOpener = attachmentOpener,
+        weatherGateway = weatherGateway,
     )
 
     /** [CadenceCore.applicationScope], named here too: the widgets' `SyncWorker` and

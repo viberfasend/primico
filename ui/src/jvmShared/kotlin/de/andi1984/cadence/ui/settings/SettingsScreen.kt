@@ -64,6 +64,8 @@ fun SettingsScreen(
     onShowCompletedChange: (Boolean) -> Unit,
     onRemindersChange: (Boolean) -> Unit,
     onReminderLeadMinutesChange: (List<Int>) -> Unit,
+    onWeatherEnabledChange: (Boolean) -> Unit,
+    onWeatherLocationChange: (String) -> Unit,
     onExport: (BackupTarget) -> Unit,
     onImport: (List<BackupTarget>) -> Unit,
     onClearBackupOutcome: () -> Unit,
@@ -184,6 +186,40 @@ fun SettingsScreen(
                 text = stringResource(Res.string.settings_reminder_lead_supporting),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            SettingSection(stringResource(Res.string.settings_weather))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Switch(
+                    checked = settings.weatherEnabled,
+                    onCheckedChange = onWeatherEnabledChange,
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(Res.string.settings_weather_outdoor),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = stringResource(Res.string.settings_weather_outdoor_supporting),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            OutlinedTextField(
+                value = settings.weatherLocation,
+                onValueChange = onWeatherLocationChange,
+                label = { Text(stringResource(Res.string.settings_weather_location)) },
+                supportingText = {
+                    Text(stringResource(Res.string.settings_weather_location_supporting))
+                },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
             )
 
             SettingSection(stringResource(Res.string.settings_sync))

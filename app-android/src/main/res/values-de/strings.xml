@@ -30,6 +30,7 @@
 
     <string name="widget_overdue">Überfällig</string>
     <string name="widget_due_today">Heute</string>
+    <string name="widget_outdoor">Draußen</string>
     <string name="widget_no_due_date">Kein Datum</string>
     <string name="widget_done">Erledigt</string>
     <string name="widget_add_task">Aufgabe hinzufügen</string>

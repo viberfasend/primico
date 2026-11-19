@@ -43,6 +43,7 @@ import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material.icons.rounded.UnfoldMore
 import androidx.compose.material.icons.rounded.ViewAgenda
+import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.ui.graphics.vector.ImageVector
 
 /** One place to map the design's Material Symbols to the icon set shipped with Compose. */
@@ -76,6 +77,9 @@ object AppIcons {
     val Settings: ImageVector = Icons.Rounded.Settings
     val Snooze: ImageVector = Icons.Rounded.Snooze
     val Sort: ImageVector = Icons.AutoMirrored.Rounded.Sort
+
+    /** Good weather — the outdoor section's heading on Today (ADR 0007). */
+    val Sun: ImageVector = Icons.Rounded.WbSunny
 
     /** Points from a subtask up to the task it belongs to. */
     val ParentTask: ImageVector = Icons.Rounded.ArrowUpward

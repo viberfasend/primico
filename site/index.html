@@ -469,6 +469,10 @@ kbd{display:inline-block;padding:1px 7px;border:1px solid var(--line);border-bot
       <h3>Between your devices</h3>
       <p class="muted">Sign in and your devices merge through a Postgres database you host on <a href="https://neon.tech">Neon</a> — a free project is enough. Each device pushes what it wrote and pulls what the others wrote; deletes travel as tombstones; row-level security keeps every account to its own rows. There is no Primico server, and the published builds accept no sign-ups: you point a build at your project by following <a href="docs/self-hosting/">the self-hosting guide</a>.</p>
     </div>
+    <div>
+      <h3>One opt-in exception: the weather</h3>
+      <p class="muted">If you switch on the outdoor section in Settings, the app asks <a href="https://open-meteo.com">Open-Meteo</a> — a free API that needs no account and no key — about once an hour for the city or coordinates you entered there. That location string is the only thing sent, and nothing is sent while the setting is off, which is the default. The details are written down in <a href="docs/adr/0007-outdoor-section-weather/">ADR 0007</a>.</p>
+    </div>
   </div>
 </section>
 

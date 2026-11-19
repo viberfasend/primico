@@ -131,6 +131,7 @@
     <!-- ── Today ───────────────────────────────────────────────────────────────────── -->
     <string name="today_title">Today</string>
     <string name="today_section_due">Due today</string>
+    <string name="today_section_outdoor">Outdoor</string>
     <string name="today_empty_title">Nothing due today</string>
     <string name="today_empty_supporting">Anything you add without a date lands in the Inbox.</string>
     <string name="today_overdue_header">Overdue · %1$d</string>
@@ -531,6 +532,13 @@
     <string name="settings_reminder_lead_add">Add…</string>
     <string name="settings_reminder_lead_add_title">Notify me before</string>
     <string name="settings_reminder_lead_add_label">Minutes before</string>
+
+    <!-- ── Weather ── -->
+    <string name="settings_weather">Weather</string>
+    <string name="settings_weather_outdoor">Outdoor section on Today</string>
+    <string name="settings_weather_outdoor_supporting">On days that are not raining, Today gets an extra section with your open @outdoor tasks.</string>
+    <string name="settings_weather_location">Location for the weather</string>
+    <string name="settings_weather_location_supporting">A city (Berlin) or coordinates (52.52, 13.405). While the section is on, this is sent to Open-Meteo — free, no account, no key — about once an hour. Empty turns the section off.</string>
 
     <!-- ── Sizes and elapsed time ──────────────────────────────────────────────────── -->
     <string name="size_bytes">%1$s B</string>

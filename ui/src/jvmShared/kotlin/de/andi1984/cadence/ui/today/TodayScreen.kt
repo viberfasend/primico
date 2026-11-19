@@ -76,6 +76,7 @@ fun TodayScreen(
     val list = state.taskList(TaskView.Today, today)
     val overdue = list.band(BandHeading.Overdue)?.tasks.orEmpty()
     val dueToday = list.band(BandHeading.None)?.tasks.orEmpty()
+    val outdoor = list.band(BandHeading.Outdoor)?.tasks.orEmpty()
     val openCount = list.openCount
 
     var sortMenuOpen by remember { mutableStateOf(false) }
@@ -158,7 +159,8 @@ fun TodayScreen(
                     }
                 }
 
-                if (dueToday.isEmpty() && overdue.isEmpty()) {
+                val showDay = dueToday.isNotEmpty() || overdue.isNotEmpty()
+                if (!showDay && outdoor.isEmpty()) {
                     item(key = "empty") {
                         EmptyState(
                             title = stringResource(Res.string.today_empty_title),
@@ -166,7 +168,8 @@ fun TodayScreen(
                             hint = quickAddHint(),
                         )
                     }
-                } else {
+                }
+                if (showDay) {
                     item(key = "due-today-header") {
                         SectionHeader(stringResource(Res.string.today_section_due))
                     }
@@ -206,8 +209,64 @@ fun TodayScreen(
                         )
                     }
                 }
+                // The outdoor band on a known-dry day. A derived view, so its rows get no drop
+                // carets: a drag there could only reorder LooseTasks ambiguously.
+                if (outdoor.isNotEmpty()) {
+                    item(key = "outdoor-header") {
+                        OutdoorHeader(count = outdoor.size)
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+                    outdoor.forEach { task ->
+                        item(key = "outdoor-${task.id}") {
+                            TaskRow(
+                                task = task,
+                                projectLabel = state.projectLabel(task),
+                                today = today,
+                                onToggle = { onToggle(task) },
+                                onClick = { onTaskClick(task) },
+                                parentTitle = state.parentOf(task)?.title,
+                                subtaskProgress = state.subtaskProgress(task.id),
+                                attachmentCount = state.attachmentCount(task.id),
+                                modifier = Modifier.animateItem(),
+                            )
+                        }
+                    }
+                }
             }
         }
+    }
+}
+
+/**
+ * The outdoor band's heading: a sun, the heading text and the count. The icon is decorative —
+ * the words carry the meaning for a screen reader.
+ */
+@Composable
+private fun OutdoorHeader(count: Int) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 6.dp, end = 6.dp, top = 12.dp, bottom = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = AppIcons.Sun,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(18.dp),
+        )
+        Text(
+            text = stringResource(Res.string.today_section_outdoor),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = pluralTasks(count),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

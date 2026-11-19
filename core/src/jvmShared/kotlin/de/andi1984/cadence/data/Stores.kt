@@ -186,6 +186,13 @@ interface TagStore {
 
     suspend fun getAll(): List<Tag>
 
+    /**
+     * The row whether or not it is tombstoned — the merge needs this to compare against a local
+     * tombstone, and seeding the well-known tags needs it so a deleted well-known tag is never
+     * resurrected.
+     */
+    suspend fun byIdIncludingDeleted(id: String): Tag?
+
     /** Inserts a tag that already carries its final id, minted by the caller. */
     suspend fun insert(tag: Tag)
 

@@ -119,6 +119,7 @@
     <!-- ── Heute ───────────────────────────────────────────────────────────────────── -->
     <string name="today_title">Heute</string>
     <string name="today_section_due">Heute fällig</string>
+    <string name="today_section_outdoor">Draußen</string>
     <string name="today_empty_title">Heute ist nichts fällig</string>
     <string name="today_empty_supporting">Alles, was du ohne Datum anlegst, landet im Eingang.</string>
     <string name="today_overdue_header">Überfällig · %1$d</string>
@@ -513,6 +514,13 @@
     <string name="settings_reminder_lead_add">Hinzufügen…</string>
     <string name="settings_reminder_lead_add_title">Vorher benachrichtigen</string>
     <string name="settings_reminder_lead_add_label">Minuten vorher</string>
+
+    <!-- ── Wetter ── -->
+    <string name="settings_weather">Wetter</string>
+    <string name="settings_weather_outdoor">Outdoor-Bereich in „Heute“</string>
+    <string name="settings_weather_outdoor_supporting">An Tagen ohne Regen bekommt „Heute“ einen zusätzlichen Bereich mit deinen offenen @outdoor-Aufgaben.</string>
+    <string name="settings_weather_location">Ort für das Wetter</string>
+    <string name="settings_weather_location_supporting">Eine Stadt (Berlin) oder Koordinaten (52,52; 13,405). Solange der Bereich an ist, wird das etwa einmal pro Stunde an Open-Meteo gesendet – kostenlos, ohne Konto, ohne Schlüssel. Leer schaltet den Bereich aus.</string>
 
     <!-- ── Größen und vergangene Zeit ──────────────────────────────────────────────── -->
     <string name="size_bytes">%1$s B</string>

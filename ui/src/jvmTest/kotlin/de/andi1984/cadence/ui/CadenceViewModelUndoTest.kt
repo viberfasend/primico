@@ -76,6 +76,7 @@ class CadenceViewModelUndoTest {
             reminderScheduler = reminders,
             backupGateway = FakeBackupGateway(),
             attachmentOpener = RecordingAttachmentOpener(),
+            weatherGateway = FakeWeatherGateway(),
             syncEngine = CadenceSyncEngine(FakeSyncStore(), backgroundScope),
             scope = backgroundScope,
         )

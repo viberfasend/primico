@@ -8,6 +8,7 @@ import de.andi1984.cadence.domain.model.Project
 import de.andi1984.cadence.domain.model.Section
 import de.andi1984.cadence.domain.model.Tag
 import de.andi1984.cadence.domain.model.Task
+import de.andi1984.cadence.domain.model.WellKnownTags
 import de.andi1984.cadence.domain.recurrence.RecurrenceEngine
 import de.andi1984.cadence.domain.reminder.shiftedByDays
 import kotlinx.coroutines.CancellationException
@@ -771,6 +772,33 @@ class CadenceRepository(
     }
 
     // ── Tags ───────────────────────────────────────────────────────────────────────
+
+    /**
+     * Inserts the well-known tags ([WellKnownTags]) when no row with their fixed id exists —
+     * tombstone included, so a well-known tag the user deleted stays deleted and is never
+     * resurrected. `CadenceCore` runs this once per start; it is idempotent, and the insert goes
+     * through [write] so the new tag arms sync and travels to the other devices like any row the
+     * app itself wrote.
+     */
+    suspend fun seedWellKnownTags() {
+        if (tagStore.byIdIncludingDeleted(WellKnownTags.OUTDOOR) != null) return
+        write {
+            // Re-checked inside the write: two starts racing (or a pull landing the tag first)
+            // must not turn one insert into two ticks of `localWrites`.
+            if (tagStore.byIdIncludingDeleted(WellKnownTags.OUTDOOR) == null) {
+                tagStore.insert(
+                    Tag(
+                        id = WellKnownTags.OUTDOOR,
+                        name = WellKnownTags.OUTDOOR_NAME,
+                        colorHex = WellKnownTags.OUTDOOR_COLOR,
+                        // Last in the list, the same way a freshly created tag lands.
+                        sortOrder = (tagStore.maxSortOrder() ?: -1) + 1,
+                        updatedAt = now(),
+                    ),
+                )
+            }
+        }
+    }
 
     /**
      * Validates and upserts a tag.

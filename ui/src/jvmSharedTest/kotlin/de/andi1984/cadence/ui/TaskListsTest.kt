@@ -5,6 +5,7 @@ import de.andi1984.cadence.domain.model.Project
 import de.andi1984.cadence.domain.model.Section
 import de.andi1984.cadence.domain.model.Tag
 import de.andi1984.cadence.domain.model.Task
+import de.andi1984.cadence.domain.model.WellKnownTags
 import de.andi1984.cadence.ui.settings.CadenceSettings
 import de.andi1984.cadence.ui.settings.SortMode
 import org.junit.Assert.assertEquals
@@ -36,6 +37,7 @@ class TaskListsTest {
         projectId: String? = null,
         sectionId: String? = null,
         parentId: String? = null,
+        spawnedFromId: String? = null,
         due: LocalDate? = null,
         done: Boolean = false,
         priority: Priority = Priority.DEFAULT,
@@ -49,6 +51,7 @@ class TaskListsTest {
         sectionId = sectionId,
         tagIds = tagIds,
         parentId = parentId,
+        spawnedFromId = spawnedFromId,
         dueDate = due,
         completedAt = if (done) Instant.EPOCH else null,
         priority = priority,
@@ -62,12 +65,14 @@ class TaskListsTest {
         tags: List<Tag> = emptyList(),
         showCompleted: Boolean = false,
         sortMode: SortMode = SortMode.IMPORTANCE,
+        todayDry: Boolean? = null,
     ) = CadenceUiState(
         tasks = tasks,
         projects = projects,
         sections = sections,
         tags = tags,
         settings = CadenceSettings(showCompleted = showCompleted, sortMode = sortMode),
+        weather = WeatherUiState(todayDry = todayDry),
     )
 
     private fun TaskBand.ids() = rows.map { it.task.id }
@@ -138,6 +143,98 @@ class TaskListsTest {
         ).taskList(TaskView.Today, today)
 
         assertEquals(2, list.openCount)
+    }
+
+    // ── Today's outdoor band ──
+
+    private val outdoor = listOf(WellKnownTags.OUTDOOR)
+
+    @Test
+    fun `Today has no outdoor band when the weather is unknown or wet`() {
+        val tasks = listOf(task("mow", tagIds = outdoor), task("now", due = today))
+
+        for (todayDry in listOf(null, false)) {
+            val list = state(tasks = tasks, todayDry = todayDry).taskList(TaskView.Today, today)
+            assertEquals(null, list.band(BandHeading.Outdoor))
+        }
+        // The dry-day list without the flag would show it, so the negative cases are meaningful.
+        val dry = state(tasks = tasks, todayDry = true).taskList(TaskView.Today, today)
+        assertEquals(listOf("mow"), dry.band(BandHeading.Outdoor)?.ids())
+    }
+
+    @Test
+    fun `the outdoor band sits below due today and holds open outdoor tasks`() {
+        val list = state(
+            tasks = listOf(
+                task("now", due = today),
+                task("mow", tagIds = outdoor),
+                task("paint", tagIds = outdoor, priority = Priority.P1),
+                task("indoor"),
+            ),
+            todayDry = true,
+        ).taskList(TaskView.Today, today)
+
+        assertEquals(listOf("now"), list.band(BandHeading.None)?.ids())
+        // Usual sort inside the band: importance first, like every other band.
+        assertEquals(listOf("paint", "mow"), list.band(BandHeading.Outdoor)?.ids())
+        assertEquals(BandHeading.Outdoor, list.bands.last().heading)
+    }
+
+    @Test
+    fun `the outdoor band never duplicates what is already on today's plate`() {
+        val list = state(
+            tasks = listOf(
+                task("late", due = today.minusDays(1), tagIds = outdoor),
+                task("now", due = today, tagIds = outdoor),
+                task("mow", tagIds = outdoor),
+            ),
+            todayDry = true,
+        ).taskList(TaskView.Today, today)
+
+        assertEquals(listOf("late"), list.band(BandHeading.Overdue)?.ids())
+        assertEquals(listOf("now"), list.band(BandHeading.None)?.ids())
+        assertEquals(listOf("mow"), list.band(BandHeading.Outdoor)?.ids())
+    }
+
+    @Test
+    fun `the outdoor band respects show completed, like the due-today band`() {
+        val tasks = listOf(task("mow", tagIds = outdoor), task("done", tagIds = outdoor, done = true))
+
+        assertEquals(
+            listOf("mow"),
+            state(tasks = tasks, todayDry = true).taskList(TaskView.Today, today)
+                .band(BandHeading.Outdoor)?.ids(),
+        )
+        assertEquals(
+            listOf("mow", "done"),
+            state(tasks = tasks, todayDry = true, showCompleted = true).taskList(TaskView.Today, today)
+                .band(BandHeading.Outdoor)?.ids(),
+        )
+    }
+
+    @Test
+    fun `the outdoor band drops a superseded recurring occurrence`() {
+        val list = state(
+            tasks = listOf(
+                task("occ-1", tagIds = outdoor, done = true),
+                task("occ-2", tagIds = outdoor, spawnedFromId = "occ-1"),
+            ),
+            todayDry = true,
+            showCompleted = true,
+        ).taskList(TaskView.Today, today)
+
+        assertEquals(listOf("occ-2"), list.band(BandHeading.Outdoor)?.ids())
+    }
+
+    @Test
+    fun `the outdoor band disappears when it would be empty`() {
+        val list = state(
+            tasks = listOf(task("indoor"), task("now", due = today)),
+            todayDry = true,
+        ).taskList(TaskView.Today, today)
+
+        assertEquals(null, list.band(BandHeading.Outdoor))
+        assertEquals(1, list.bands.size)
     }
 
     // ── Inbox ────────────────────────────────────────────────────────────────────────

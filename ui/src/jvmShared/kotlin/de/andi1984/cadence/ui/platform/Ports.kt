@@ -2,6 +2,7 @@ package de.andi1984.cadence.ui.platform
 
 import de.andi1984.cadence.domain.backup.BackupOutcome
 import de.andi1984.cadence.domain.model.Task
+import de.andi1984.cadence.domain.weather.WeatherDay
 import java.io.File
 import java.io.InputStream
 
@@ -132,4 +133,21 @@ interface AttachmentOpener {
     fun openFile(file: File, name: String, mimeType: String): Boolean
 
     fun openLink(url: String): Boolean
+}
+
+/**
+ * Today's coarse weather for the location the user set in Settings — the one network call in the
+ * app that is not sync (ADR 0007, decision 4).
+ *
+ * A port rather than a `:core` class used directly, for the same reason the others are one: the
+ * ViewModel's tests fake it, and the shells implement it over `:core`'s `WeatherClient` (HTTPS+JSON
+ * is not a platform difference, so both implementations are the same four lines).
+ */
+interface WeatherGateway {
+    /**
+     * Today's weather for [location] — a city name or `"lat,lon"`, exactly the
+     * `CadenceSettings.weatherLocation` string. Null when the answer is unknown: a failed or
+     * unresolvable lookup is never a "good" day.
+     */
+    suspend fun today(location: String): WeatherDay?
 }

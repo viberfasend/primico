@@ -1,12 +1,11 @@
 package de.andi1984.cadence.data.sync
 
+import de.andi1984.cadence.data.http.defaultHttpClient as newDefaultHttpClient
 import de.andi1984.cadence.domain.model.Project
 import de.andi1984.cadence.domain.model.Section
 import de.andi1984.cadence.domain.model.Tag
 import de.andi1984.cadence.domain.model.Task
 import io.ktor.client.HttpClient
-import io.ktor.client.engine.okhttp.OkHttp
-import io.ktor.client.plugins.HttpTimeout
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -529,15 +528,9 @@ class CadenceSyncEngine(
         val TOMBSTONE_HORIZON: Duration = Duration.ofDays(90)
 
         /**
-         * Generous on purpose: a Neon compute that scaled to zero answers its first request only
-         * after a cold start, and that has to read as latency, not as OFFLINE.
+         * The one HTTP recipe in `:core`, shared with the weather client — see
+         * `data/http/HttpClients.kt` for why the timeouts are what they are.
          */
-        fun defaultHttpClient(): HttpClient = HttpClient(OkHttp) {
-            install(HttpTimeout) {
-                connectTimeoutMillis = 10_000
-                requestTimeoutMillis = 30_000
-                socketTimeoutMillis = 30_000
-            }
-        }
+        fun defaultHttpClient(): HttpClient = newDefaultHttpClient()
     }
 }

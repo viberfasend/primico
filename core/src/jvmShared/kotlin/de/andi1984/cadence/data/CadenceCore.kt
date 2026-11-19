@@ -82,6 +82,9 @@ class CadenceCore(
         // Heals a leak left by a process killed mid-copy — cheap even at a few hundred files,
         // and start-up is the only time nothing else is racing the blob directory yet.
         applicationScope.launch { repository.sweepOrphanBlobs() }
+        // The well-known tags (@outdoor today) exist from the first start on — but only ever
+        // once: a deleted one is a tombstone like any other and stays deleted.
+        applicationScope.launch { repository.seedWellKnownTags() }
     }
 
     /**

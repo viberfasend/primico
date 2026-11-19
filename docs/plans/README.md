@@ -19,5 +19,8 @@ order is the `priority:P0`–`P3` labels on the
   the dock, the app menu and the jump list, and the single-instance guard they need first.
 - **[Plan: flexible task reminders](task-reminders.md)** — any number of reminders per task, on
   any day: before the due time, days before the due date, or a fixed date, with repeats and snooze.
+- **[Plan: an outdoor section on Today when the weather is good](outdoor-tasks-weather.md)** —
+  coarse weather (one dry/raining flag for today, Open-Meteo, no API key) shows an extra Today
+  section with the open `@outdoor` tasks on days that are not raining.
 - **[Attachments and the Android share sheet](../attachments-and-share.md)** — the design and
   phases for attachments; phases 0–2 have shipped, and the rest belongs to the interop epic.

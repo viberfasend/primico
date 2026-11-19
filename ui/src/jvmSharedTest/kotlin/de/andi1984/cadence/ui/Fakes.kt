@@ -7,10 +7,12 @@ import de.andi1984.cadence.domain.model.Project
 import de.andi1984.cadence.domain.model.Section
 import de.andi1984.cadence.domain.model.Tag
 import de.andi1984.cadence.domain.model.Task
+import de.andi1984.cadence.domain.weather.WeatherDay
 import de.andi1984.cadence.ui.platform.AttachmentOpener
 import de.andi1984.cadence.ui.platform.BackupGateway
 import de.andi1984.cadence.ui.platform.BackupTarget
 import de.andi1984.cadence.ui.platform.ReminderScheduler
+import de.andi1984.cadence.ui.platform.WeatherGateway
 import de.andi1984.cadence.ui.settings.CadenceSettings
 import de.andi1984.cadence.ui.settings.Density
 import de.andi1984.cadence.ui.settings.SettingsStore
@@ -122,6 +124,30 @@ class FakeSettingsStore(initial: CadenceSettings = CadenceSettings()) : Settings
 
     override fun setReminderLeadMinutes(minutes: List<Int>) {
         _state.value = _state.value.copy(reminderLeadMinutes = minutes)
+    }
+
+    override fun setWeatherEnabled(enabled: Boolean) {
+        _state.value = _state.value.copy(weatherEnabled = enabled)
+    }
+
+    override fun setWeatherLocation(location: String) {
+        _state.value = _state.value.copy(weatherLocation = location)
+    }
+}
+
+/**
+ * Records every location it was asked about and answers a scripted [result] — null models a
+ * failed fetch, which the ViewModel must read as "unknown", never as a good-weather day.
+ */
+class FakeWeatherGateway : WeatherGateway {
+
+    var result: WeatherDay? = null
+
+    val locations = mutableListOf<String>()
+
+    override suspend fun today(location: String): WeatherDay? {
+        locations += location
+        return result
     }
 }
 

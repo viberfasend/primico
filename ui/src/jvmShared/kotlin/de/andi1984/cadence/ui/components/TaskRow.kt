@@ -141,6 +141,7 @@ fun TaskRow(
                 onSetDueDate = interactions.onSetDueDate,
                 onMoveToProject = interactions.onMoveTaskToProject,
                 onMoveToSection = interactions.onMoveTaskToSection,
+                onToggleTag = interactions.onToggleTaskTag,
                 onDuplicate = interactions.onDuplicateTask,
                 onDelete = interactions.onDeleteTask,
             )

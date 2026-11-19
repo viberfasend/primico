@@ -131,6 +131,7 @@ On every `TaskRow` in every list, when `RowInteractions.enabled`.
 | Due date ▸ | Today, Tomorrow, Next week, No due date |
 | Move to project ▸ | Inbox, then every project |
 | Move to section ▸ | No section, then the project's sections — only shown when the task is in a project that has sections |
+| Tags ▸ | every tag, checked for the ones the task wears — clicking a row adds the tag or removes it |
 | Duplicate | copies the task |
 | Copy title | puts the title on the clipboard |
 | Delete | deletes, with undo |

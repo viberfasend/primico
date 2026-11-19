@@ -117,6 +117,28 @@ fun CadenceMenuItem(
     )
 }
 
+/**
+ * A menu item with a check state, for the things a row either has or has not — a tag, say. Both
+ * states stay clickable (toggling is the point), so the check marks the current state in place of
+ * the icon, the way a checkbox menu does.
+ */
+@Composable
+fun CadenceMenuToggleItem(
+    text: String,
+    checked: Boolean,
+    onClick: () -> Unit,
+    icon: ImageVector? = null,
+) {
+    DropdownMenuItem(
+        text = { Text(text) },
+        onClick = onClick,
+        leadingIcon = {
+            val shown = if (checked) AppIcons.Check else icon
+            shown?.let { Icon(it, contentDescription = null) }
+        },
+    )
+}
+
 /** A menu item that opens a page of the same menu rather than doing something. */
 @Composable
 fun CadenceSubmenuItem(text: String, icon: ImageVector? = null, onClick: () -> Unit) {

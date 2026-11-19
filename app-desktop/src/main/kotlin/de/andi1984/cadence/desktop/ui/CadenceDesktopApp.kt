@@ -154,6 +154,7 @@ fun CadenceDesktopApp(
         onSetDueDate = viewModel::setDueDate,
         onMoveTaskToProject = viewModel::setProject,
         onMoveTaskToSection = viewModel::setSection,
+        onToggleTaskTag = viewModel::toggleTag,
         onDuplicateTask = { task -> viewModel.duplicateTask(task, "${task.title} (copy)") },
         onDeleteTask = viewModel::deleteTask,
         onBatchAction = { ids, action -> viewModel.applyToTasks(ids.toSet(), action) },

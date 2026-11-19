@@ -32,7 +32,7 @@ import java.time.LocalDate
  * `DropdownMenu`, and a page that names where it is and how to get back is both less code and
  * easier to hit with a mouse than a strip that closes when the pointer leaves it.
  */
-private enum class TaskMenuPage { Root, Priority, DueDate, Project, Section }
+private enum class TaskMenuPage { Root, Priority, DueDate, Project, Section, Tags }
 
 @Composable
 fun ColumnScope.TaskContextMenuItems(
@@ -46,6 +46,7 @@ fun ColumnScope.TaskContextMenuItems(
     onSetDueDate: (Task, LocalDate?) -> Unit,
     onMoveToProject: (Task, String?) -> Unit,
     onMoveToSection: (Task, String?) -> Unit,
+    onToggleTag: (Task, String) -> Unit,
     onDuplicate: (Task) -> Unit,
     onDelete: (Task) -> Unit,
 ) {
@@ -95,6 +96,11 @@ fun ColumnScope.TaskContextMenuItems(
                     onClick = { page = TaskMenuPage.Section },
                 )
             }
+            CadenceSubmenuItem(
+                text = stringResource(Res.string.tags_title),
+                icon = AppIcons.Tag,
+                onClick = { page = TaskMenuPage.Tags },
+            )
             HorizontalDivider()
             CadenceMenuItem(
                 text = stringResource(Res.string.menu_duplicate),
@@ -171,6 +177,27 @@ fun ColumnScope.TaskContextMenuItems(
                     icon = AppIcons.Folder,
                     enabled = project.id != task.projectId,
                     onClick = { dismiss(); onMoveToProject(task, project.id) },
+                )
+            }
+        }
+
+        TaskMenuPage.Tags -> {
+            CadenceMenuBack(stringResource(Res.string.tags_title)) { page = TaskMenuPage.Root }
+            if (state.tags.isEmpty()) {
+                CadenceMenuItem(
+                    text = stringResource(Res.string.tags_empty_title),
+                    enabled = false,
+                    onClick = {},
+                )
+            }
+            // One row per tag, checked for the ones the task wears: tapping adds the tag or
+            // takes it off, which is the same toggle the detail screen's picker makes.
+            state.tags.forEach { tag ->
+                CadenceMenuToggleItem(
+                    text = "@${tag.handle}",
+                    icon = AppIcons.Tag,
+                    checked = tag.id in task.tagIds,
+                    onClick = { dismiss(); onToggleTag(task, tag.id) },
                 )
             }
         }

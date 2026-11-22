@@ -111,8 +111,10 @@ would need the Compose test runtime, and none of the rules worth pinning live in
 write leaves the caller's thread and still lands the newest value),
 `DesktopWorkspaceStore` (the same, plus the clamps: a sidebar width outside its range, a window
 position from a monitor that is gone), `DesktopReminderScheduler` (fires once per due task, and
-forgets what the reconcile stops listing) and `DesktopNavigator` (the back/forward stacks, and
-what happens to an open detail pane when the window is resized across the two-pane threshold) —
+forgets what the reconcile stops listing), `DesktopNavigator` (the back/forward stacks, and
+what happens to an open detail pane when the window is resized across the two-pane threshold) and
+`resolveAppVersion` (the version Settings shows: the one compiled in by `generateDesktopBuildConfig`
+from `CADENCE_VERSION_NAME`, or `0.0.0-dev` for a `:app-desktop:run` from source) —
 the classes there with no Compose in them.
 
 `assembleDebug` only ever compiles `:ui`'s *Android* target, and its tests reach only the
@@ -178,6 +180,14 @@ variables — `docs/self-hosting.md` is the walkthrough. The URLs grant nothing 
 there is no API key in this design; the credential is the account, and RLS is what protects
 the rows. The account itself is created in the Neon console's Auth tab — the app has sign-in
 only, no sign-up.
+
+The desktop's version is compiled in the same way: `:app-desktop`'s `generateDesktopBuildConfig`
+task writes `CADENCE_VERSION_NAME` into a generated `DesktopBuildConfig.VERSION_NAME`, and
+`Main.kt` resolves it through `resolveAppVersion`. An installed .deb/.dmg/.msi is launched
+without the build's shell environment, so a run-time `System.getenv` read made every packaged
+build report `0.0.0-dev` in Settings (#217); with the variable unset — a plain
+`:app-desktop:run` from source — the generated constant is `null` and the fallback
+`0.0.0-dev` is what Settings shows.
 
 ```bash
 ./gradlew connectedDebugAndroidTest   # needs a device; CI has no emulator

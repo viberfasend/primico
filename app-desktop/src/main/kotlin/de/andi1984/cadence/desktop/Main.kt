@@ -278,7 +278,9 @@ fun main() = application {
         val databaseFile = remember { File(PlatformDirs.dataDir(), CADENCE_DATABASE_FILE_NAME) }
         val appInfo = remember(state.tasks.size, state.projects.size) {
             AppInfo(
-                version = System.getenv("CADENCE_VERSION_NAME") ?: "0.0.0-dev",
+                // Compiled in at build time, not read from the environment: an installed
+                // .deb/.dmg/.msi is launched without CADENCE_VERSION_NAME in it (#217).
+                version = resolveAppVersion(DesktopBuildConfig.VERSION_NAME),
                 databaseSizeBytes = databaseFile.length(),
             )
         }

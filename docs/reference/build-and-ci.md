@@ -120,7 +120,8 @@ appended.
 
 Fallbacks when no version is passed in: Android `versionName` `0.0.0-dev` and `versionCode` `1`;
 desktop `packageVersion` `1.0.0` (a `-suffix` is always cut off, since jpackage wants
-`major.minor.patch`).
+`major.minor.patch`) and, compiled into `DesktopBuildConfig.VERSION_NAME` as `null`, the version
+Settings shows on desktop — `0.0.0-dev` at run time.
 
 ## Workflows
 

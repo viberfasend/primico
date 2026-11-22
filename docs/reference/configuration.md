@@ -19,8 +19,8 @@ Read from the environment of the Gradle invocation (or of the script named).
 | `CADENCE_NEON_AUTH_URL` | `:core`'s `generateNeonConfig` task | Compiled into `NeonBuildConfig.AUTH_URL`; the Neon Auth endpoint | no sync |
 | `CADENCE_VERSION_NAME` | [`app-android/build.gradle.kts`](../../app-android/build.gradle.kts) | Android `versionName` | `0.0.0-dev` |
 | | [`app-desktop/build.gradle.kts`](../../app-desktop/build.gradle.kts) | Desktop `packageVersion`, with any `-suffix` cut off (jpackage wants plain `major.minor.patch`) | `1.0.0` |
+| | `:app-desktop`'s `generateDesktopBuildConfig` task | Compiled into the generated `DesktopBuildConfig.VERSION_NAME`; the version shown in the desktop app's Settings (`AppInfo.version`) | `0.0.0-dev` at run time |
 | | [`build.sh`](../../.github/scripts/build.sh) | Used as the version instead of deriving one | derived by `next-version.sh` |
-| | desktop `Main.kt`, **at run time** | The version shown in the desktop app's Settings (`AppInfo.version`) | `0.0.0-dev` |
 | `CADENCE_VERSION_CODE` | `app-android/build.gradle.kts` | Android `versionCode` | `1` |
 | `CADENCE_KEYSTORE` | `app-android/build.gradle.kts`, `check-signing.sh` | Path to the release keystore; when set **and** the file exists, the release APK is signed with it | release APK signed with the committed debug key |
 | `CADENCE_KEYSTORE_PASSWORD` | `app-android/build.gradle.kts` | Store password of the release keystore | — |
@@ -34,6 +34,15 @@ build carries neither. With neither, `NeonConfig.fromBuild` is `null`, `SyncStat
 `Unconfigured` for the life of the process, Settings shows a paragraph instead of the sign-in
 form, and no request is ever made. The URL shapes are in [Sync wire format](sync-wire.md#endpoints);
 the walkthrough is [Self-hosting](../self-hosting.md).
+
+`CADENCE_VERSION_NAME` is compiled into the desktop build the same way, by
+`:app-desktop`'s `generateDesktopBuildConfig` task, to
+`app-desktop/build/generated/desktopBuildConfig/kotlin/de/andi1984/cadence/desktop/DesktopBuildConfig.kt`
+— generated, never committed. It is a *build*-time input on purpose: an installed .deb/.dmg/.msi
+is launched without the shell environment the build ran in, so reading the variable at run time
+made every packaged build report `0.0.0-dev` in Settings. With the variable unset (a plain
+`:app-desktop:run` from source) the generated constant is `null` and Settings falls back to
+`0.0.0-dev`.
 
 ### Script environment
 

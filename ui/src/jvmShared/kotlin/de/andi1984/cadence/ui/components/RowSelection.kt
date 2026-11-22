@@ -75,10 +75,23 @@ class RowSelectionState {
         if (id == null || id !in selectedIds) selectedIds = emptySet()
     }
 
-    /** Ctrl/Cmd+click (or `x` on the cursor's row, or a long-press on Android): flip one row's membership. */
+    /** Ctrl/Cmd+click (or `Space` on the cursor's row, or a long-press on Android): flip one row's membership. */
     fun toggle(id: String) {
         selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
         selectedId = id
+    }
+
+    /**
+     * The keyboard's way into the set: flips the cursor's row in and out of it (`Space`, #237).
+     * `x` stays "mark done" — it is the shortcut the row menu and the checkbox tooltips advertise
+     * — so without this a keyboard-only user had no way to build a selection at all.
+     *
+     * Reports whether there was a cursor to flip, so the key can fall through on an empty list.
+     */
+    fun toggleCursorSelected(): Boolean {
+        val id = selectedId ?: return false
+        toggle(id)
+        return true
     }
 
     /** Shift+click: everything between the cursor and [id], inclusive, joins the set. */

@@ -156,4 +156,48 @@ class RowSelectionStateTest {
         assertEquals(setOf("a"), selection.selectedIds)
         assertNull(selection.selectedId)
     }
+
+    // ── Keyboard entry into the set (#237) ─────────────────────────────────────────
+
+    @Test
+    fun `the keyboard toggle flips the cursor's row in and out of the set and keeps the cursor on it`() {
+        // `x` still marks the row done; this is the key that builds the selection without the
+        // pointer.
+        val selection = state("a" to 0f, "b" to 50f, "c" to 100f)
+        selection.select("b")
+
+        assertTrue(selection.toggleCursorSelected())
+        assertEquals(setOf("b"), selection.selectedIds)
+        assertEquals("b", selection.selectedId)
+        assertTrue(selection.isSelecting)
+
+        assertTrue(selection.toggleCursorSelected())
+        assertTrue(selection.selectedIds.isEmpty())
+        assertFalse(selection.isSelecting)
+        // The cursor stays on the row: it is still the one `x`, `t` and friends act on.
+        assertEquals("b", selection.selectedId)
+    }
+
+    @Test
+    fun `the keyboard toggle with no cursor does nothing and reports it, so the key falls through`() {
+        val selection = state("a" to 0f)
+
+        assertFalse(selection.toggleCursorSelected())
+
+        assertTrue(selection.selectedIds.isEmpty())
+        assertNull(selection.selectedId)
+    }
+
+    @Test
+    fun `the keyboard toggle stacks with the pointer gestures on the same rows`() {
+        val selection = state("a" to 0f, "b" to 50f, "c" to 100f)
+        selection.toggle("a")
+        selection.moveBy(1) // cursor to b; the set is untouched
+
+        assertTrue(selection.toggleCursorSelected())
+        assertEquals(setOf("a", "b"), selection.selectedIds)
+
+        selection.extendTo("c")
+        assertEquals(setOf("a", "b", "c"), selection.selectedIds)
+    }
 }

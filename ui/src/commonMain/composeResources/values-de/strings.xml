@@ -570,6 +570,8 @@
     <string name="command_go_to">Zu %1$s</string>
     <string name="shortcut_select_next">Nächste Aufgabe</string>
     <string name="shortcut_select_previous">Vorherige Aufgabe</string>
+    <!-- `Leertaste` auf der Cursor-Zeile: in die Mehrfachauswahl hinein oder heraus. `x` bleibt „erledigen“. -->
+    <string name="shortcut_toggle_selection">Auswahl umschalten</string>
     <string name="shortcut_forward">Vorwärts</string>
     <string name="shortcut_close">Detail schließen oder zurück</string>
     <string name="empty_quick_add_hint">%1$s drücken, um eine Aufgabe hinzuzufügen.</string>
@@ -583,6 +585,8 @@
     <string name="menu_open">Öffnen</string>
     <string name="menu_due_date">Fällig am</string>
     <string name="menu_next_week">Nächste Woche</string>
+    <!-- Der letzte Eintrag der Fälligkeitsmenüs: öffnet einen Kalender statt einen Tag zu nennen. -->
+    <string name="menu_pick_date">Datum wählen…</string>
     <string name="menu_duplicate">Duplizieren</string>
     <string name="menu_copy_title">Titel kopieren</string>
     <string name="menu_task_actions">Aktionen für %1$s</string>

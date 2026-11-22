@@ -105,4 +105,19 @@ class ShortcutsTest {
     fun `an action with two rows is hinted by its letter, not its arrow`() {
         assertEquals("J", keysFor(ShortcutAction.SelectNext))
     }
+
+    @Test
+    fun `space toggles the cursor row's membership and x still marks it done`() {
+        // #237: `x` keeps the meaning the row menu and the checkbox tooltips advertise, and the
+        // multi-select set gets its own key, so a keyboard-only user can build a selection
+        // without the pointer.
+        assertEquals(ShortcutAction.ToggleSelection, shortcutFor(press(Key.Spacebar, ' ')))
+        assertEquals(ShortcutAction.ToggleDone, shortcutFor(press(Key.X, 'x')))
+    }
+
+    @Test
+    fun `space with a modifier held is not the selection toggle`() {
+        assertNull(shortcutFor(press(Key.Spacebar, ' ', primary = true)))
+        assertNull(shortcutFor(press(Key.Spacebar, ' ', shift = true)))
+    }
 }

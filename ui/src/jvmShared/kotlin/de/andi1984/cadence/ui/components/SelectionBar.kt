@@ -77,6 +77,9 @@ fun SelectionActionBar(modifier: Modifier = Modifier) {
     val selectedTasks = ids.mapNotNull { id -> state.tasks.firstOrNull { it.id == id } }
     val allDone = selectedTasks.isNotEmpty() && selectedTasks.all { it.isDone }
 
+    // The due-date menu's "pick…" entry (#237): a real calendar, applied to the whole set.
+    var datePickerOpen by remember { mutableStateOf(false) }
+
     val countLabel: @Composable (Modifier) -> Unit = { textModifier ->
         Text(
             text = pluralStringResource(Res.plurals.selection_count, count, count),
@@ -110,7 +113,7 @@ fun SelectionActionBar(modifier: Modifier = Modifier) {
             ) {
                 clearButton()
                 countLabel(Modifier.weight(1f))
-                SelectionActions(::run, allDone, selectedTasks)
+                SelectionActions(::run, allDone, selectedTasks) { datePickerOpen = true }
             }
         } else {
             Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
@@ -126,10 +129,20 @@ fun SelectionActionBar(modifier: Modifier = Modifier) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceEvenly,
                 ) {
-                    SelectionActions(::run, allDone, selectedTasks)
+                    SelectionActions(::run, allDone, selectedTasks) { datePickerOpen = true }
                 }
             }
         }
+    }
+
+    if (datePickerOpen) {
+        CadenceDatePickerDialog(
+            // Seeded with the first selected row's date, the way the single-row pickers are, so
+            // the calendar opens where the set already is rather than on an arbitrary day.
+            initial = selectedTasks.firstOrNull()?.dueDate ?: interactions.today,
+            onDismiss = { datePickerOpen = false },
+            onPick = { picked -> run(TaskBatchAction.SetDueDate(picked)) },
+        )
     }
 }
 
@@ -142,6 +155,7 @@ private fun SelectionActions(
     run: (TaskBatchAction) -> Unit,
     allDone: Boolean,
     selectedTasks: List<Task>,
+    onPickDate: () -> Unit,
 ) {
     val interactions = LocalRowInteractions.current
     val state = interactions.state
@@ -190,6 +204,11 @@ private fun SelectionActions(
             DropdownMenuItem(
                 text = { Text(stringResource(Res.string.menu_next_week)) },
                 onClick = { dueMenu = false; run(TaskBatchAction.SetDueDate(today.plusWeeks(1))) },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(Res.string.menu_pick_date)) },
+                leadingIcon = { Icon(AppIcons.CalendarMonth, contentDescription = null) },
+                onClick = { dueMenu = false; onPickDate() },
             )
             HorizontalDivider()
             DropdownMenuItem(

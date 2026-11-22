@@ -150,6 +150,15 @@ fun CadenceSidebar(
                     }
                     item {
                         SidebarRow(
+                            icon = AppIcons.Today,
+                            label = stringResource(Res.string.nav_calendar),
+                            count = null,
+                            selected = current == Route.Calendar,
+                            onClick = { onSwitchTo(Route.Calendar) },
+                        )
+                    }
+                    item {
+                        SidebarRow(
                             icon = AppIcons.Inbox,
                             label = stringResource(Res.string.nav_inbox),
                             count = inboxCount,

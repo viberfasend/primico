@@ -41,6 +41,7 @@ import de.andi1984.cadence.ui.components.SyncFailureSnackbar
 import de.andi1984.cadence.ui.components.UndoSnackbar
 import de.andi1984.cadence.ui.detail.TaskDetailScreen
 import de.andi1984.cadence.ui.dnd.DragAndDropHost
+import de.andi1984.cadence.ui.calendar.MonthGridScreen
 import de.andi1984.cadence.ui.inbox.InboxScreen
 import de.andi1984.cadence.ui.inbox.TriageScreen
 import de.andi1984.cadence.ui.platform.AppInfo
@@ -347,6 +348,30 @@ private fun RouteContent(
             syncControls = syncControls,
         )
 
+        Route.Calendar -> MonthGridScreen(
+            state = state,
+            today = today,
+            onTaskClick = { navigator.go(Route.TaskDetail(it.id)) },
+            onDayClick = { date ->
+                // Open Upcoming for that date
+                navigator.go(Route.Upcoming)
+            },
+            onToggle = viewModel::toggleTask,
+            onReschedule = { taskIds, date ->
+                taskIds.forEach { taskId ->
+                    state.tasks.firstOrNull { it.id == taskId }?.let { task ->
+                        viewModel.setDueDate(task, date)
+                    }
+                }
+            },
+            onSortChange = viewModel::setSortMode,
+            onSearch = { navigator.go(Route.Search) },
+            onSettings = { navigator.go(Route.Settings) },
+            onPreviousMonth = {},
+            onNextMonth = {},
+            syncControls = syncControls,
+        )
+
         Route.Inbox -> InboxScreen(
             state = state,
             today = today,
@@ -488,6 +513,7 @@ private fun RouteContent(
 fun routeLabel(route: Route, state: CadenceUiState): String = when (route) {
     Route.Today -> stringResource(Res.string.nav_today)
     Route.Upcoming -> stringResource(Res.string.nav_upcoming)
+    Route.Calendar -> stringResource(Res.string.nav_calendar)
     Route.Inbox -> stringResource(Res.string.nav_inbox)
     Route.Projects -> stringResource(Res.string.nav_projects)
     Route.Tags -> stringResource(Res.string.tags_title)

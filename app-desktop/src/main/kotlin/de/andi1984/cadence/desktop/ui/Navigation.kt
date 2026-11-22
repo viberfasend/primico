@@ -18,6 +18,7 @@ sealed interface Route {
     data object Upcoming : Route
     data object Inbox : Route
     data object Projects : Route
+    data object Calendar : Route
     data object Search : Route
     data object Settings : Route
     data object Triage : Route

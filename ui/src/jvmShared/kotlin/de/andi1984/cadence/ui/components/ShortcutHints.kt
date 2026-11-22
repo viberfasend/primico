@@ -36,6 +36,7 @@ enum class HintedAction {
     DueTomorrow,
     DueNextWeek,
     NoDueDate,
+    Calendar,
 }
 
 /**

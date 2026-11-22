@@ -432,3 +432,19 @@ stands rejected), a poll on a phone with no widgets, or a push channel. Real sub
 with the process dead needs the server to wake the phone — FCM data messages, a Firebase project,
 a device-token table and an edge function — which is recorded as an open follow-up rather than
 smuggled in here.
+
+## Amendment 2 (2026-11-22): window close runs a bounded round, not a fire-and-forget one
+
+Decision 11's "on window close, fire-and-forget: the process does not wait for the round" no
+longer holds on the desktop, and the reason is mechanical rather than philosophical: the round was
+launched on the application scope (`syncInBackground()`), and the exit path cancels that very
+scope (`CadenceCore.close()`) a moment later — so the last round died at its first suspension
+point and never sent anything (#216). A change made just before quitting reached the phone only
+on the next start.
+
+The desktop's `AppContainer.shutdown()` now runs the last round on the quitting thread, bounded to
+three seconds (`runBlocking { withTimeoutOrNull(3s) { syncOnce() } }`), before the settings flush
+and the scope teardown. The bound keeps the original reasoning — an app that hesitates when you
+close it feels worse than one that syncs late — while a push that misses the window still ships
+on the next start, exactly as before. Android's `onStop` stays fire-and-forget: the process
+outlives the callback there, so a launched round is allowed to finish on its own.

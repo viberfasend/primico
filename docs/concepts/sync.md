@@ -130,7 +130,7 @@ Rounds start on their own:
 | Return to the foreground | `onStart` again | the window regains focus |
 | Two seconds after a local write | `localWrites` debounce in the ViewModel | same |
 | Foreground poll, every 60 s | between `onStart` and `onStop` only | for the whole process, minimised included |
-| Leaving | `onStop`, fire-and-forget | `AppContainer.shutdown()` on window close or tray Quit |
+| Leaving | `onStop`, fire-and-forget | `AppContainer.shutdown()` on window close or tray Quit — one round, bounded to 3 s |
 | Home-screen widget | a 15-minute periodic `SyncWorker` while a widget exists and a session is stored | — |
 | By hand | pull-to-refresh | a header button, `Ctrl`/`Cmd`+`R` |
 

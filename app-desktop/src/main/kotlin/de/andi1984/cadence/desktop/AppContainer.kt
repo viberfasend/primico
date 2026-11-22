@@ -2,6 +2,7 @@ package de.andi1984.cadence.desktop
 
 import de.andi1984.cadence.data.CadenceCore
 import de.andi1984.cadence.data.db.DatabaseDriverFactory
+import de.andi1984.cadence.data.sync.CadenceSyncEngine
 import de.andi1984.cadence.desktop.data.DesktopAttachmentOpener
 import de.andi1984.cadence.desktop.data.DesktopBackupFilePicker
 import de.andi1984.cadence.desktop.data.DesktopBackupIo
@@ -13,7 +14,9 @@ import de.andi1984.cadence.desktop.platform.PlatformDirs
 import de.andi1984.cadence.ui.ViewModelAdapters
 import de.andi1984.cadence.ui.format.notificationLabel
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import java.awt.TrayIcon
+import java.time.Duration
 
 /** Hand-rolled dependency graph, same idea as `:app-android`'s `AppContainer`: the app is small
  *  enough not to need a DI framework. Lives for the whole process — Compose Desktop has no
@@ -90,18 +93,50 @@ class AppContainer {
     /**
      * The one exit path (CLAUDE.md, "SettingsStore's setters are not suspend"): both
      * `onCloseRequest` and the tray menu's Quit call this, in the order that rule requires —
-     * a last, fire-and-forget sync while there is still a process to run it, then the settings
-     * flush `exitApplication()` must not race, then [CadenceCore.close] to cancel the
-     * application scope and close the database driver.
+     * a last sync round, run with a bound rather than launched, then the settings flush
+     * `exitApplication()` must not race, then [CadenceCore.close] to cancel the application
+     * scope and close the database driver.
      *
-     * Sync stays fire-and-forget on [applicationScope] rather than being awaited: the window
-     * must not hesitate on the way out, and a push that misses this moment ships on the next
-     * start (ADR 0002, decision 11) — which is also why it runs *before* the scope it needs is
-     * cancelled, not after.
+     * The last round is *run*, not launched: `syncInBackground()` would hand it to the very
+     * application scope [CadenceCore.close] cancels a moment later, so the round died at its
+     * first suspension point and never sent anything — a change made just before quitting
+     * reached the phone only on the next start (#216). The sequence itself lives in the
+     * top-level [shutdown] so a test can drive it against a fake sync client.
      */
-    fun shutdown() {
-        syncEngine.syncInBackground()
-        settingsStore.flush()
-        core.close()
-    }
+    fun shutdown() = shutdown(
+        syncEngine = syncEngine,
+        flushSettings = settingsStore::flush,
+        closeCore = core::close,
+    )
 }
+
+/**
+ * The exit sequence, with its parts as parameters: one bounded sync round, then the settings
+ * flush, then the core's teardown — in that order, because the round needs the application scope
+ * and the database that the teardown cancels and closes.
+ *
+ * The round runs on the calling thread under [runBlocking], bounded by [lastSyncTimeout] so a
+ * server that never answers cannot hold the window open: launched on the application scope
+ * instead, it would be cancelled by [closeCore] at its first suspension point before sending
+ * anything (#216). Signed out or unconfigured a round returns before making a request anyway;
+ * the [CadenceSyncEngine.isSignedIn] gate keeps the quit path from even taking the round's
+ * mutex when there is no account.
+ */
+internal fun shutdown(
+    syncEngine: CadenceSyncEngine,
+    flushSettings: () -> Unit,
+    closeCore: () -> Unit,
+    lastSyncTimeout: Duration = LAST_SYNC_ON_QUIT_TIMEOUT,
+) {
+    runBlocking {
+        if (syncEngine.isSignedIn()) {
+            withTimeoutOrNull(lastSyncTimeout.toMillis()) { syncEngine.syncOnce() }
+        }
+    }
+    flushSettings()
+    closeCore()
+}
+
+/** How long the last round on the way out may hold the window open — the bound that keeps quit
+ *  from hanging on a server that never answers. */
+private val LAST_SYNC_ON_QUIT_TIMEOUT: Duration = Duration.ofSeconds(3)

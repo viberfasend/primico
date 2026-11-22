@@ -270,7 +270,8 @@ link-repaired; a link that names a record not yet pulled is tolerated until it a
 | Return to the foreground / window focus | Android `ProcessLifecycleOwner`, desktop window focus | each time |
 | After a local write | `CadenceViewModel`, debouncing `CadenceRepository.localWrites` | 2 s (`WRITE_DEBOUNCE`) |
 | Foreground poll | `CadenceSyncEngine.startForegroundPoll()`; Android between `onStart` and `onStop`, desktop for the whole process | 60 s (`FOREGROUND_POLL_INTERVAL`) |
-| App stop / window close / tray Quit | both shells, fire-and-forget `syncInBackground()` | once |
+| App stop | Android, fire-and-forget `syncInBackground()` | once |
+| Window close / tray Quit | desktop, one round bounded to 3 s inside `AppContainer.shutdown()` | once |
 | A write made from a home-screen widget | Android `SyncWorker.enqueue`, one-shot, needs a network | once, exponential backoff from 30 s, 3 attempts |
 | Home-screen widget present and signed in | Android `SyncWorker.ensurePeriodic` | 15 min |
 | Manual | desktop header button and `Ctrl`/`Cmd`+`R`; Android pull-to-refresh | on demand |

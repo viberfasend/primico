@@ -724,7 +724,8 @@ than reaching for `!!`.
     pushed and pulled back returns strictly newer than its local copy and ping-pongs forever.
 - **Nobody presses anything to sync** (ADR 0002, decisions 11, 13 and 14). Rounds start on app
   start and every return to the foreground (on the desktop: the window regaining focus), two
-  seconds after a write, fire-and-forget on stop and window close, and every 60 seconds while
+  seconds after a write, fire-and-forget on stop, a bounded last round on the desktop's window
+  close (below), and every 60 seconds while
   the foreground poll runs (below). There is no periodic
   `WorkManager` job and no Android poll: the phone is stale only while nobody is looking at it
   — with one carve-out: a home-screen widget counts as somebody looking, so while a task widget
@@ -748,8 +749,9 @@ than reaching for `!!`.
     `CadenceSyncEngine.syncInBackground()`, which runs on the *application* scope:
     `:app-android`'s `CadenceApplication` observes `ProcessLifecycleOwner` (the Activity's
     lifecycle would sync on every rotation), `:app-desktop`'s `main()` syncs at startup and on
-    `onCloseRequest`, and both rely on `CadenceSyncEngine.startForegroundPoll()` for everything
-    in between.
+    window focus, and both rely on `CadenceSyncEngine.startForegroundPoll()` for everything
+    in between. The one exception is the way out: the desktop's `AppContainer.shutdown()` runs
+    its last round bounded on the quitting thread rather than launching it (next bullet).
   - **The header shows where sync stands, and shows nothing at all signed out.**
     `ui/components/SyncControls.kt` holds the indicator, the pull-to-refresh wrapper and the
     failure snackbar; a shell hands the four top-level screens one `SyncControls` and the two
@@ -798,9 +800,11 @@ than reaching for `!!`.
     daemon threads and would be taken with the process — the toggle someone flipped a second
     before quitting is exactly the one to keep. `onCloseRequest` and the tray menu's Quit are the
     two ways out of the desktop app, and both call this one method rather than repeating the
-    order by hand: a last fire-and-forget `syncInBackground()` while there is still a process to
-    run it (ADR 0002, decision 11), then `settingsStore.flush()`, then `CadenceCore.close()` to
-    cancel the application scope and close the database driver — `viewModel.close()` stays
+    order by hand: a last sync round **run with a three-second bound** (`runBlocking {
+    withTimeoutOrNull(3s) { syncOnce() } }` — launched instead, it would hang off the application
+    scope that `CadenceCore.close()` cancels a moment later and die at its first suspension
+    point before sending anything, #216), then `settingsStore.flush()`, then `CadenceCore.close()`
+    to cancel the application scope and close the database driver — `viewModel.close()` stays
     outside it, since the ViewModel's scope belongs to `main()`, not the container. Anything
     reading the file straight back (every test that does) has to call `flush()` too. `load()`
     stays on the calling thread, alone: it runs once before any window exists, and loading

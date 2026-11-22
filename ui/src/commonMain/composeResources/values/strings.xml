@@ -482,6 +482,13 @@
     <string name="backup_error_not_json">That file is not valid JSON.</string>
     <string name="backup_error_not_a_backup">That file is not a Primico backup.</string>
     <string name="backup_error_newer_version">That backup was written by a newer version of Primico.</string>
+    <string name="settings_export_ics">Export calendar</string>
+    <string name="settings_export_ics_supporting">Writes dated tasks into an .ics file you pick, so a phone calendar, Thunderbird or Outlook can show them beside meetings.</string>
+    <!-- Default name offered by the file picker for ICS export; %1$s is the date, e.g. 2026-08-05. -->
+    <string name="ics_file_name">primico-tasks-%1$s.ics</string>
+    <!-- "Exported 42 dated tasks." -->
+    <string name="ics_exported">Exported %1$s.</string>
+    <string name="ics_error_write">The calendar file could not be written. Pick another location and try again.</string>
 
     <!-- ── Danger zone ─────────────────────────────────────────────────────────────── -->
     <string name="settings_danger_zone">Danger zone</string>

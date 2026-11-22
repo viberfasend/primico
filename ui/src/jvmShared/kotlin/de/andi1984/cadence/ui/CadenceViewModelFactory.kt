@@ -3,6 +3,7 @@ package de.andi1984.cadence.ui
 import de.andi1984.cadence.data.CadenceCore
 import de.andi1984.cadence.ui.platform.AttachmentOpener
 import de.andi1984.cadence.ui.platform.BackupGateway
+import de.andi1984.cadence.ui.platform.IcsGateway
 import de.andi1984.cadence.ui.platform.ReminderScheduler
 import de.andi1984.cadence.ui.platform.WeatherGateway
 import de.andi1984.cadence.ui.settings.SettingsStore
@@ -21,6 +22,7 @@ class ViewModelAdapters(
     val backupGateway: BackupGateway,
     val attachmentOpener: AttachmentOpener,
     val weatherGateway: WeatherGateway,
+    val icsGateway: IcsGateway? = null,
 )
 
 /**
@@ -44,5 +46,6 @@ fun cadenceViewModel(
     attachmentOpener = adapters.attachmentOpener,
     weatherGateway = adapters.weatherGateway,
     syncEngine = core.syncEngine,
+    icsGateway = adapters.icsGateway,
     scope = scope,
 )

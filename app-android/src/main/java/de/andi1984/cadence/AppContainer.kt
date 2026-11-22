@@ -36,6 +36,8 @@ class AppContainer(context: Context) {
 
     val backupIo = BackupIo(context, repository, settingsStore)
 
+    val icsIo = de.andi1984.cadence.data.ics.IcsIo(context, repository)
+
     val reminderScheduler = AlarmReminderScheduler(context)
 
     /** The `FileProvider` half of attachments; the picker half is a composable, since a SAF
@@ -54,6 +56,7 @@ class AppContainer(context: Context) {
         backupGateway = backupIo,
         attachmentOpener = attachmentOpener,
         weatherGateway = weatherGateway,
+        icsGateway = icsIo,
     )
 
     /** [CadenceCore.applicationScope], named here too: the widgets' `SyncWorker` and

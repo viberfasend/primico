@@ -5,6 +5,7 @@ import de.andi1984.cadence.domain.model.Task
 import de.andi1984.cadence.domain.weather.WeatherDay
 import java.io.File
 import java.io.InputStream
+import java.time.Instant
 
 /**
  * What the ViewModel needs from the machine it is running on.
@@ -58,6 +59,24 @@ interface BackupGateway {
 }
 
 /**
+ * Result of an ICS export operation.
+ */
+sealed interface IcsOutcome {
+    data class Exported(val tasks: Int, val exportedAt: Instant) : IcsOutcome
+    data class Failed(val reason: IcsFailure) : IcsOutcome
+}
+
+/** Reasons an ICS export can fail. */
+enum class IcsFailure {
+    WRITE_FAILED,
+}
+
+/** Reads and writes ICS files the user named. */
+interface IcsGateway {
+    suspend fun export(target: BackupTarget, includeCompleted: Boolean = true): IcsOutcome
+}
+
+/**
  * The platform's file chooser, driven from Settings.
  *
  * It calls back rather than returning, because Android's is an Activity result: the answer
@@ -77,6 +96,9 @@ interface BackupFilePicker {
      * with an empty list — that is a cancelled picker, not an answer.
      */
     fun pickImportSource(onPicked: (List<BackupTarget>) -> Unit)
+
+    /** Asks for a file to write an ICS file, seeded with [suggestedName]. */
+    fun pickIcsExportTarget(suggestedName: String, onPicked: (BackupTarget) -> Unit)
 }
 
 /**

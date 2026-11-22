@@ -7,6 +7,8 @@ import de.andi1984.cadence.ui.resources.Res
 import de.andi1984.cadence.ui.resources.*
 import de.andi1984.cadence.domain.backup.BackupFailure
 import de.andi1984.cadence.domain.backup.BackupOutcome
+import de.andi1984.cadence.ui.platform.IcsFailure
+import de.andi1984.cadence.ui.platform.IcsOutcome
 
 /** Turns the result of an export or import into the sentence shown under the buttons. */
 @Composable
@@ -66,3 +68,19 @@ private fun projectCount(count: Int): String =
 @Composable
 private fun fileCount(count: Int): String =
     pluralStringResource(Res.plurals.file_count, count, count)
+
+/** Turns the result of an ICS export into the sentence shown under the buttons. */
+@Composable
+fun icsOutcomeText(outcome: IcsOutcome): String = when (outcome) {
+    is IcsOutcome.Exported ->
+        stringResource(Res.string.ics_exported, taskCount(outcome.tasks))
+    is IcsOutcome.Failed -> icsFailureText(outcome.reason)
+}
+
+/** The same sentences on their own, for the failure reports. */
+@Composable
+fun icsFailureText(reason: IcsFailure): String = stringResource(
+    when (reason) {
+        IcsFailure.WRITE_FAILED -> Res.string.ics_error_write
+    },
+)

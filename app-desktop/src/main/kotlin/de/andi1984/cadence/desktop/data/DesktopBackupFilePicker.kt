@@ -13,6 +13,7 @@ import javax.swing.filechooser.FileNameExtensionFilter
 class DesktopBackupFilePicker : BackupFilePicker {
 
     private val jsonFilter = FileNameExtensionFilter("Primico backup (*.json)", "json")
+    private val icsFilter = FileNameExtensionFilter("iCalendar (*.ics)", "ics")
 
     override fun pickExportTarget(suggestedName: String, onPicked: (BackupTarget) -> Unit) {
         val chooser = JFileChooser().apply {
@@ -42,5 +43,21 @@ class DesktopBackupFilePicker : BackupFilePicker {
             ?: arrayOf(chooser.selectedFile)
         val targets = chosen.filterNotNull().map { BackupTarget(it.absolutePath) }
         if (targets.isNotEmpty()) onPicked(targets)
+    }
+
+    override fun pickIcsExportTarget(suggestedName: String, onPicked: (BackupTarget) -> Unit) {
+        val chooser = JFileChooser().apply {
+            fileFilter = icsFilter
+            selectedFile = File(suggestedName)
+        }
+        if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
+            val chosen = chooser.selectedFile
+            val withExtension = if (chosen.extension.equals("ics", ignoreCase = true)) {
+                chosen
+            } else {
+                File(chosen.parentFile, "${chosen.name}.ics")
+            }
+            onPicked(BackupTarget(withExtension.absolutePath))
+        }
     }
 }

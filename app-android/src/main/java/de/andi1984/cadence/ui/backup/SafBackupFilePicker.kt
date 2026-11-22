@@ -24,6 +24,7 @@ import de.andi1984.cadence.ui.platform.BackupTarget
 fun rememberSafBackupFilePicker(): BackupFilePicker {
     var onExportPicked by remember { mutableStateOf<((BackupTarget) -> Unit)?>(null) }
     var onImportPicked by remember { mutableStateOf<((List<BackupTarget>) -> Unit)?>(null) }
+    var onIcsExportPicked by remember { mutableStateOf<((BackupTarget) -> Unit)?>(null) }
 
     val exportLauncher = rememberLauncherForActivityResult(
         PersistableCreateDocument(BACKUP_MIME_TYPE),
@@ -46,7 +47,15 @@ fun rememberSafBackupFilePicker(): BackupFilePicker {
         if (uris.isNotEmpty()) callback?.invoke(uris.map { BackupTarget(it.toString()) })
     }
 
-    return remember(exportLauncher, importLauncher) {
+    val icsExportLauncher = rememberLauncherForActivityResult(
+        PersistableCreateDocument(ICS_MIME_TYPE),
+    ) { uri ->
+        val callback = onIcsExportPicked
+        onIcsExportPicked = null
+        if (uri != null) callback?.invoke(BackupTarget(uri.toString()))
+    }
+
+    return remember(exportLauncher, importLauncher, icsExportLauncher) {
         object : BackupFilePicker {
             override fun pickExportTarget(suggestedName: String, onPicked: (BackupTarget) -> Unit) {
                 onExportPicked = onPicked
@@ -56,6 +65,11 @@ fun rememberSafBackupFilePicker(): BackupFilePicker {
             override fun pickImportSource(onPicked: (List<BackupTarget>) -> Unit) {
                 onImportPicked = onPicked
                 importLauncher.launch(arrayOf("*/*"))
+            }
+
+            override fun pickIcsExportTarget(suggestedName: String, onPicked: (BackupTarget) -> Unit) {
+                onIcsExportPicked = onPicked
+                icsExportLauncher.launch(suggestedName)
             }
         }
     }
@@ -78,3 +92,4 @@ private class PersistableCreateDocument(mimeType: String) :
 }
 
 private const val BACKUP_MIME_TYPE = "application/json"
+private const val ICS_MIME_TYPE = "text/calendar"

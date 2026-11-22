@@ -321,6 +321,16 @@
     <string name="reminder_repeat_times">%1$s · alle %2$d Min., %3$d-mal</string>
     <string name="reminder_repeat_until_done">%1$s · alle %2$d Min., bis erledigt</string>
     <string name="reminder_content_text">Heute fällig</string>
+    <string name="reminder_repeat">Wiederholen</string>
+    <string name="reminder_no_repeat">Aus</string>
+    <string name="reminder_repeat_every_5_min">Alle 5 Min.</string>
+    <string name="reminder_repeat_every_10_min">Alle 10 Min.</string>
+    <string name="reminder_repeat_every_30_min">Alle 30 Min.</string>
+    <string name="reminder_repeat_until_done_short">Bis erledigt</string>
+    <plurals name="reminder_repeat_times_short">
+        <item quantity="one">%1$d-mal</item>
+        <item quantity="other">%1$d-mal</item>
+    </plurals>
     <string name="reminder_at_content_text">Erinnerung</string>
     <plurals name="reminder_lead_content_text">
         <item quantity="one">In %1$d Minute</item>

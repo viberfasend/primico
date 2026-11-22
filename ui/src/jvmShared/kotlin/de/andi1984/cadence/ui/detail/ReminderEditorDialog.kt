@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import de.andi1984.cadence.domain.model.Task
 import de.andi1984.cadence.domain.reminder.Reminder
+import de.andi1984.cadence.domain.reminder.ReminderRepeat
 import de.andi1984.cadence.domain.reminder.ReminderTrigger
 import de.andi1984.cadence.ui.components.CadenceDatePickerDialog
 import de.andi1984.cadence.ui.components.CadenceTimePickerDialog
@@ -30,6 +31,7 @@ import de.andi1984.cadence.ui.format.formatTime
 import de.andi1984.cadence.ui.format.relativeDate
 import de.andi1984.cadence.ui.resources.Res
 import de.andi1984.cadence.ui.resources.*
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import java.time.LocalDate
 import java.time.LocalTime
@@ -52,8 +54,7 @@ private val DEFAULT_AT = LocalTime.of(9, 0)
  *
  * Presets cover the common shapes (same day / 1 / 2 / 7 days before at a chosen time, 5 / 15 / 30 /
  * 60 minutes before); the time and the fixed date are picked with the same pickers the due date
- * and time use. Repeat (nag) is phase 2 and deliberately not offered here yet, though the model
- * and the codecs already carry it.
+ * and time use. Repeat (nag) lets a reminder re-fire every N minutes until done or a set count.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -99,6 +100,13 @@ fun ReminderEditorDialog(
     }
     var datePickerOpen by remember { mutableStateOf(false) }
     var timePickerOpen by remember { mutableStateOf(false) }
+    // Repeat (nag) state
+    var repeatEvery by remember(initial) {
+        mutableStateOf(initial?.repeat?.everyMinutes ?: 0)
+    }
+    var repeatCount by remember(initial) {
+        mutableStateOf(initial?.repeat?.count)
+    }
 
     val kindLabels = kinds.map { k ->
         when (k) {
@@ -175,6 +183,84 @@ fun ReminderEditorDialog(
                         }
                     }
                 }
+                // Repeat (nag) controls
+                Text(
+                    text = stringResource(Res.string.reminder_repeat),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    // Off
+                    FilterChip(
+                        selected = repeatEvery == 0,
+                        onClick = { 
+                            repeatEvery = 0
+                            repeatCount = null
+                        },
+                        label = { Text(stringResource(Res.string.reminder_no_repeat)) },
+                    )
+                    // Every 5 minutes
+                    FilterChip(
+                        selected = repeatEvery == 5,
+                        onClick = { 
+                            repeatEvery = 5
+                            if (repeatCount == null) repeatCount = null // Keep as until done
+                        },
+                        label = { Text(stringResource(Res.string.reminder_repeat_every_5_min)) },
+                    )
+                    // Every 10 minutes
+                    FilterChip(
+                        selected = repeatEvery == 10,
+                        onClick = { 
+                            repeatEvery = 10
+                            if (repeatCount == null) repeatCount = null
+                        },
+                        label = { Text(stringResource(Res.string.reminder_repeat_every_10_min)) },
+                    )
+                    // Every 30 minutes
+                    FilterChip(
+                        selected = repeatEvery == 30,
+                        onClick = { 
+                            repeatEvery = 30
+                            if (repeatCount == null) repeatCount = null
+                        },
+                        label = { Text(stringResource(Res.string.reminder_repeat_every_30_min)) },
+                    )
+                }
+                if (repeatEvery > 0) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        // Until done
+                        FilterChip(
+                            selected = repeatCount == null,
+                            onClick = { repeatCount = null },
+                            label = { Text(stringResource(Res.string.reminder_repeat_until_done_short)) },
+                        )
+                        // 3 times
+                        FilterChip(
+                            selected = repeatCount == 3,
+                            onClick = { repeatCount = 3 },
+                            label = { Text(pluralStringResource(Res.plurals.reminder_repeat_times_short, 3, 3)) },
+                        )
+                        // 5 times
+                        FilterChip(
+                            selected = repeatCount == 5,
+                            onClick = { repeatCount = 5 },
+                            label = { Text(pluralStringResource(Res.plurals.reminder_repeat_times_short, 5, 5)) },
+                        )
+                        // 10 times
+                        FilterChip(
+                            selected = repeatCount == 10,
+                            onClick = { repeatCount = 10 },
+                            label = { Text(pluralStringResource(Res.plurals.reminder_repeat_times_short, 10, 10)) },
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
@@ -185,7 +271,12 @@ fun ReminderEditorDialog(
                         EditorKind.DAYS_BEFORE_DUE -> ReminderTrigger.DaysBeforeDue(days, at)
                         EditorKind.AT -> ReminderTrigger.At(date.atTime(time))
                     }
-                    onSave(Reminder(trigger, initial?.repeat))
+                    val repeat = if (repeatEvery > 0) {
+                        ReminderRepeat(repeatEvery, repeatCount)
+                    } else {
+                        null
+                    }
+                    onSave(Reminder(trigger, repeat, initial?.acknowledgedAt))
                 },
             ) {
                 Text(stringResource(Res.string.action_save))

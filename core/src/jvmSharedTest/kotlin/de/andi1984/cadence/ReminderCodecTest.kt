@@ -5,7 +5,9 @@ import de.andi1984.cadence.domain.reminder.Reminder
 import de.andi1984.cadence.domain.reminder.ReminderRepeat
 import de.andi1984.cadence.domain.reminder.ReminderTrigger
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
+import java.time.Instant
 import java.time.LocalDateTime
 import java.time.LocalTime
 
@@ -86,5 +88,46 @@ class ReminderCodecTest {
             listOf(Reminder(ReminderTrigger.DaysBeforeDue(0, LocalTime.of(9, 30)))),
             ReminderCodec.decode("v1;d0@09:30"),
         )
+    }
+
+    @Test
+    fun `an acknowledged reminder encodes and decodes the acknowledgedAt timestamp`() {
+        val now = Instant.parse("2026-08-05T12:00:00Z")
+        val acknowledgedReminder = Reminder(
+            ReminderTrigger.DaysBeforeDue(0, LocalTime.of(9, 0)),
+            acknowledgedAt = now,
+        )
+        val encoded = ReminderCodec.encode(listOf(acknowledgedReminder))
+        val decoded = ReminderCodec.decode(encoded)
+        assertEquals(listOf(acknowledgedReminder), decoded)
+    }
+
+    @Test
+    fun `a reminder without acknowledgedAt still encodes correctly`() {
+        val reminder = Reminder(ReminderTrigger.DaysBeforeDue(0, LocalTime.of(9, 0)))
+        val encoded = ReminderCodec.encode(listOf(reminder))
+        assertEquals("v1;d0@09:00", encoded)
+    }
+
+    @Test
+    fun `old encoded reminders without acknowledgedAt still decode correctly`() {
+        val decoded = ReminderCodec.decode("v1;d0@09:00")
+        assertEquals(
+            listOf(Reminder(ReminderTrigger.DaysBeforeDue(0, LocalTime.of(9, 0)), acknowledgedAt = null)),
+            decoded,
+        )
+    }
+
+    @Test
+    fun `a repeat with acknowledgedAt encodes both`() {
+        val now = Instant.parse("2026-08-05T12:00:00Z")
+        val reminder = Reminder(
+            ReminderTrigger.DaysBeforeDue(0, LocalTime.of(9, 0)),
+            ReminderRepeat(10, 3),
+            now,
+        )
+        val encoded = ReminderCodec.encode(listOf(reminder))
+        val decoded = ReminderCodec.decode(encoded)
+        assertEquals(listOf(reminder), decoded)
     }
 }

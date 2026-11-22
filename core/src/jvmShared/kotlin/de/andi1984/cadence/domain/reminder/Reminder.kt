@@ -26,8 +26,16 @@ import java.time.ZoneId
  * Snooze, reschedule and "overdue → today" need no code per kind: the relative triggers are
  * computed from the due date at plan time, so they follow it automatically, while [At] stays
  * fixed because that is what absolute means.
+ *
+ * [acknowledgedAt] records when a repeating reminder's current instant was dismissed (RFC 9074
+ * idea). A device skips instants at or before it. Done/Snooze set it, so the phone dismissing a
+ * nag stops the desktop's remaining instants after sync. Null means no dismissal happened yet.
  */
-data class Reminder(val trigger: ReminderTrigger, val repeat: ReminderRepeat? = null)
+data class Reminder(
+    val trigger: ReminderTrigger,
+    val repeat: ReminderRepeat? = null,
+    val acknowledgedAt: Instant? = null,
+)
 
 sealed interface ReminderTrigger {
     /** N minutes before (negative = after) the due *moment*. Needs dueDate + dueTime. */
@@ -52,16 +60,19 @@ data class ReminderRepeat(val everyMinutes: Int, val count: Int?)
  * ([de.andi1984.cadence.data.db.ReminderCodec]) and the alarm slot [ReminderPlanner] derives from
  * it: `m30` (minutes before the due time), `d1@09:00` (days before the due date at a time),
  * `t2026-10-26T09:00` (a fixed date-time), each with an optional `~r10x3` repeat suffix
- * (`~r10` for "until done"). The characters `=`, `,`, `|`, `#` never occur in one, which is what
- * the column format and the slot suffix rely on.
+ * (`~r10` for "until done") and an optional `~a2026-08-05T12:00:00Z` acknowledged suffix.
+ * The characters `=`, `,`, `|`, `#` never occur in one, which is what the column format
+ * and the slot suffix rely on.
  *
  * Malformed input decodes to null, never throws — a broken column costs a task its reminders,
- * never the whole list.
+ * never the whole list. Unknown suffixes are ignored, so old code still decodes new entries
+ * (it just loses the new information), and new code still decodes old entries.
  */
 object ReminderFormat {
 
     private const val REPEAT = "~r"
     private const val REPEAT_COUNT = "x"
+    private const val ACKNOWLEDGED = "~a"
 
     fun encode(trigger: ReminderTrigger): String = when (trigger) {
         is ReminderTrigger.BeforeDueTime -> "m${trigger.minutes}"
@@ -73,15 +84,24 @@ object ReminderFormat {
         val repeat = reminder.repeat?.let { r ->
             if (r.count != null) "$REPEAT${r.everyMinutes}$REPEAT_COUNT${r.count}" else "$REPEAT${r.everyMinutes}"
         }.orEmpty()
-        return encode(reminder.trigger) + repeat
+        val acknowledged = reminder.acknowledgedAt?.let { a -> "$ACKNOWLEDGED${a.toString()}" }.orEmpty()
+        return encode(reminder.trigger) + repeat + acknowledged
     }
 
     fun decode(raw: String): Reminder? {
-        val (triggerPart, repeatPart) = if (raw.contains(REPEAT)) {
-            raw.substringBefore(REPEAT) to raw.substringAfter(REPEAT)
+        // Extract acknowledged suffix first, then repeat, then trigger
+        val (body, acknowledgedStr) = if (raw.contains(ACKNOWLEDGED)) {
+            raw.substringBefore(ACKNOWLEDGED) to raw.substringAfter(ACKNOWLEDGED)
         } else {
             raw to null
         }
+        
+        val (triggerPart, repeatPart) = if (body.contains(REPEAT)) {
+            body.substringBefore(REPEAT) to body.substringAfter(REPEAT)
+        } else {
+            body to null
+        }
+        
         val trigger = when {
             triggerPart.startsWith("m") -> triggerPart.removePrefix("m").toIntOrNull()
                 ?.let { ReminderTrigger.BeforeDueTime(it) }
@@ -97,6 +117,7 @@ object ReminderFormat {
             }
             else -> null
         } ?: return null
+        
         val repeat = repeatPart?.let { r ->
             val every = r.substringBefore(REPEAT_COUNT).toIntOrNull() ?: return null
             val count = if (r.contains(REPEAT_COUNT)) {
@@ -106,7 +127,12 @@ object ReminderFormat {
             }
             ReminderRepeat(every, count)
         }
-        return Reminder(trigger, repeat)
+        
+        val acknowledgedAt = acknowledgedStr?.let { a ->
+            runCatching { Instant.parse(a) }.getOrNull()
+        }
+        
+        return Reminder(trigger, repeat, acknowledgedAt)
     }
 }
 

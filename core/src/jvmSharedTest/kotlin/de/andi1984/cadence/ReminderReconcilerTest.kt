@@ -7,12 +7,14 @@ import de.andi1984.cadence.domain.reminder.ReminderKey
 import de.andi1984.cadence.domain.reminder.ReminderReconciler
 import de.andi1984.cadence.domain.reminder.ReminderSource
 import de.andi1984.cadence.domain.reminder.ReminderTrigger
+import de.andi1984.cadence.domain.reminder.slot
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZoneOffset
@@ -347,5 +349,78 @@ class ReminderReconcilerTest {
 
         assertTrue(commands.single() is ReminderCommand.Arm)
         assertEquals(at(LocalTime.of(11, 57)), (commands.single() as ReminderCommand.Arm).at)
+    }
+
+    // ── Acknowledged reminders ───────────────────────────────────────────────────────
+
+    @Test
+    fun `an acknowledged reminder is no longer planned and its armed instant is cancelled`() {
+        val key = ReminderKey("a", "d0@18:00#0")
+        val acknowledged = Reminder(
+            ReminderTrigger.DaysBeforeDue(0, LocalTime.of(18, 0)),
+            acknowledgedAt = now,
+        )
+
+        val commands = reconcile(
+            armed = mapOf(key to at(LocalTime.of(18, 0))),
+            tasks = listOf(task(reminders = listOf(acknowledged))),
+        )
+
+        assertEquals(listOf(ReminderCommand.Cancel(key)), commands)
+    }
+
+    @Test
+    fun `an acknowledged reminder with no armed instant produces no command`() {
+        val acknowledged = Reminder(
+            ReminderTrigger.DaysBeforeDue(0, LocalTime.of(18, 0)),
+            acknowledgedAt = now,
+        )
+
+        val commands = reconcile(
+            armed = emptyMap(),
+            tasks = listOf(task(reminders = listOf(acknowledged))),
+        )
+
+        assertEquals(emptyList<ReminderCommand>(), commands)
+    }
+
+    @Test
+    fun `setting acknowledgedAt on a reminder cancels its armed instant`() {
+        val key = ReminderKey("a", "d0@18:00#0")
+        val original = Reminder(ReminderTrigger.DaysBeforeDue(0, LocalTime.of(18, 0)))
+        val acknowledged = original.copy(acknowledgedAt = now)
+
+        val commands = reconcile(
+            armed = mapOf(key to at(LocalTime.of(18, 0))),
+            tasks = listOf(task(reminders = listOf(acknowledged))),
+        )
+
+        assertEquals(listOf(ReminderCommand.Cancel(key)), commands)
+    }
+
+    @Test
+    fun `a snoozed task adds a new reminder and cancels the old one when acknowledged`() {
+        val originalKey = ReminderKey("a", "d0@18:00#0")
+        val originalReminder = Reminder(ReminderTrigger.DaysBeforeDue(0, LocalTime.of(18, 0)))
+        val acknowledged = originalReminder.copy(acknowledgedAt = now)
+        // A new snoozed reminder at a later time
+        val snoozeReminder = Reminder(ReminderTrigger.At(LocalDateTime.of(today, LocalTime.of(19, 0))))
+
+        val snoozedTask = task(
+            reminders = listOf(acknowledged, snoozeReminder),
+        )
+
+        val commands = reconcile(
+            armed = mapOf(originalKey to at(LocalTime.of(18, 0))),
+            tasks = listOf(snoozedTask),
+        )
+
+        // The original reminder's instant should be cancelled
+        assertTrue(ReminderCommand.Cancel(originalKey) in commands)
+        // The new snoozed reminder should be armed
+        val newKey = ReminderKey("a", snoozedTask.reminders[1].slot(0))
+        val armCommands = commands.filterIsInstance<ReminderCommand.Arm>()
+        assertEquals(1, armCommands.size)
+        assertEquals(newKey, armCommands.single().key)
     }
 }

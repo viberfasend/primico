@@ -28,6 +28,9 @@ import de.andi1984.cadence.ui.dnd.DropIntent
 import de.andi1984.cadence.ui.platform.BackupGateway
 import de.andi1984.cadence.ui.platform.AttachmentOpener
 import de.andi1984.cadence.ui.platform.BackupTarget
+import de.andi1984.cadence.ui.platform.IcsFailure
+import de.andi1984.cadence.ui.platform.IcsGateway
+import de.andi1984.cadence.ui.platform.IcsOutcome
 import de.andi1984.cadence.ui.platform.PickedFile
 import de.andi1984.cadence.ui.platform.ReminderScheduler
 import de.andi1984.cadence.ui.platform.WeatherGateway
@@ -121,6 +124,8 @@ data class CadenceUiState(
     val settings: CadenceSettings = CadenceSettings(),
     /** Result of the last export or import, shown once under the Settings buttons. */
     val backupOutcome: BackupOutcome? = null,
+    /** Result of the last ICS export, shown once under the Settings buttons. */
+    val icsOutcome: IcsOutcome? = null,
     /** Sign-in state and where the last sync round got to. */
     val sync: SyncUiState = SyncUiState(),
     /** Today's coarse weather — null-safe, see [WeatherUiState]. */
@@ -417,10 +422,12 @@ class CadenceViewModel(
     /** Today's weather for the outdoor section — the one non-sync network call, faked in tests. */
     private val weatherGateway: WeatherGateway,
     private val syncEngine: CadenceSyncEngine,
+    private val icsGateway: IcsGateway? = null,
     private val scope: CoroutineScope,
 ) {
 
     private val backupOutcome = MutableStateFlow<BackupOutcome?>(null)
+    private val icsOutcome = MutableStateFlow<IcsOutcome?>(null)
 
     private val weather = MutableStateFlow(WeatherUiState())
 
@@ -450,16 +457,18 @@ class CadenceViewModel(
      *  attachments feature will want a sixth, the same way pairing did before it. */
     private data class Transient(
         val backup: BackupOutcome?,
+        val ics: IcsOutcome?,
         val pendingDelete: Set<String>,
         val snackbar: SnackbarMessage?,
     )
 
     private val transient = combine(
         backupOutcome,
+        icsOutcome,
         undoSlot.hiddenIds,
         undoSlot.snackbar,
-    ) { backup, pending, snackMessage ->
-        Transient(backup, pending, snackMessage)
+    ) { backup, ics, pending, snackMessage ->
+        Transient(backup, ics, pending, snackMessage)
     }
 
     /**
@@ -525,6 +534,7 @@ class CadenceViewModel(
             pendingDeleteIds = t.pendingDelete,
             settings = settings,
             backupOutcome = t.backup,
+            icsOutcome = t.ics,
             sync = sync,
             weather = w,
             snackbarMessage = t.snackbar,
@@ -1167,6 +1177,14 @@ class CadenceViewModel(
         backupOutcome.value = backupGateway.export(target)
     }
 
+    fun exportIcs(target: BackupTarget, includeCompleted: Boolean = true) = scope.launch {
+        val gateway = icsGateway ?: run {
+            icsOutcome.value = IcsOutcome.Failed(IcsFailure.WRITE_FAILED)
+            return@launch
+        }
+        icsOutcome.value = gateway.export(target, includeCompleted)
+    }
+
     /**
      * Folds the files into what is already here; reminders resync themselves, and the rows the
      * merge wrote travel to the other devices like any other edit.
@@ -1200,6 +1218,10 @@ class CadenceViewModel(
 
     fun clearBackupOutcome() {
         backupOutcome.value = null
+    }
+
+    fun clearIcsOutcome() {
+        icsOutcome.value = null
     }
 
     // ── Sync ─────────────────────────────────────────────────────────────────────────

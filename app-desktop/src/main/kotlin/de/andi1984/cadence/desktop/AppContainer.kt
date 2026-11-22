@@ -6,6 +6,7 @@ import de.andi1984.cadence.data.sync.CadenceSyncEngine
 import de.andi1984.cadence.desktop.data.DesktopAttachmentOpener
 import de.andi1984.cadence.desktop.data.DesktopBackupFilePicker
 import de.andi1984.cadence.desktop.data.DesktopBackupIo
+import de.andi1984.cadence.desktop.data.DesktopIcsGateway
 import de.andi1984.cadence.desktop.data.DesktopReminderScheduler
 import de.andi1984.cadence.desktop.data.DesktopSettingsStore
 import de.andi1984.cadence.desktop.data.DesktopWeatherGateway
@@ -46,6 +47,8 @@ class AppContainer {
     val settingsStore = DesktopSettingsStore(dataDir, applicationScope)
 
     val backupIo = DesktopBackupIo(repository, settingsStore)
+
+    val icsGateway = DesktopIcsGateway(repository)
 
     val backupFilePicker = DesktopBackupFilePicker()
 
@@ -88,6 +91,7 @@ class AppContainer {
         backupGateway = backupIo,
         attachmentOpener = attachmentOpener,
         weatherGateway = weatherGateway,
+        icsGateway = icsGateway,
     )
 
     /**

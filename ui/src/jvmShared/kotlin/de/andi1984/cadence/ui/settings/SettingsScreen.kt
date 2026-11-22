@@ -41,6 +41,7 @@ import de.andi1984.cadence.ui.components.AppIcons
 import de.andi1984.cadence.ui.components.CadenceChip
 import de.andi1984.cadence.ui.format.backupOutcomeText
 import de.andi1984.cadence.ui.format.formatFileSize
+import de.andi1984.cadence.ui.format.icsOutcomeText
 import de.andi1984.cadence.ui.format.relativeTime
 import de.andi1984.cadence.ui.format.syncFailureText
 import de.andi1984.cadence.ui.platform.AppInfo
@@ -67,8 +68,10 @@ fun SettingsScreen(
     onWeatherEnabledChange: (Boolean) -> Unit,
     onWeatherLocationChange: (String) -> Unit,
     onExport: (BackupTarget) -> Unit,
+    onExportIcs: (BackupTarget) -> Unit,
     onImport: (List<BackupTarget>) -> Unit,
     onClearBackupOutcome: () -> Unit,
+    onClearIcsOutcome: () -> Unit,
     onSignIn: (String, String) -> Unit,
     onSyncNow: () -> Unit,
     onSignOut: () -> Unit,
@@ -235,8 +238,10 @@ fun SettingsScreen(
                 state = state,
                 filePicker = filePicker,
                 onExport = onExport,
+                onExportIcs = onExportIcs,
                 onImport = onImport,
                 onClearBackupOutcome = onClearBackupOutcome,
+                onClearIcsOutcome = onClearIcsOutcome,
             )
 
             SettingSection(stringResource(Res.string.settings_danger_zone))
@@ -299,17 +304,20 @@ private fun BackupControls(
     state: CadenceUiState,
     filePicker: BackupFilePicker,
     onExport: (BackupTarget) -> Unit,
+    onExportIcs: (BackupTarget) -> Unit,
     onImport: (List<BackupTarget>) -> Unit,
     onClearBackupOutcome: () -> Unit,
+    onClearIcsOutcome: () -> Unit,
 ) {
     var pendingImport by remember { mutableStateOf<List<BackupTarget>>(emptyList()) }
-    val suggestedName = stringResource(Res.string.backup_file_name, LocalDate.now().toString())
+    val backupSuggestedName = stringResource(Res.string.backup_file_name, LocalDate.now().toString())
+    val icsSuggestedName = stringResource(Res.string.ics_file_name, LocalDate.now().toString())
 
     // The result line belongs to this visit to Settings, not to the app.
-    DisposableEffect(Unit) { onDispose(onClearBackupOutcome) }
+    DisposableEffect(Unit) { onDispose({ onClearBackupOutcome(); onClearIcsOutcome() }) }
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        OutlinedButton(onClick = { filePicker.pickExportTarget(suggestedName, onExport) }) {
+        OutlinedButton(onClick = { filePicker.pickExportTarget(backupSuggestedName, onExport) }) {
             Icon(AppIcons.Download, contentDescription = null)
             Text(
                 text = stringResource(Res.string.settings_export),
@@ -318,6 +326,22 @@ private fun BackupControls(
         }
         Text(
             text = stringResource(Res.string.settings_export_supporting),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        OutlinedButton(
+            onClick = { filePicker.pickIcsExportTarget(icsSuggestedName, onExportIcs) },
+            modifier = Modifier.padding(top = 8.dp),
+        ) {
+            Icon(AppIcons.Download, contentDescription = null)
+            Text(
+                text = stringResource(Res.string.settings_export_ics),
+                modifier = Modifier.padding(start = 10.dp),
+            )
+        }
+        Text(
+            text = stringResource(Res.string.settings_export_ics_supporting),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -341,6 +365,15 @@ private fun BackupControls(
         state.backupOutcome?.let { outcome ->
             Text(
                 text = backupOutcomeText(outcome),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+
+        state.icsOutcome?.let { outcome ->
+            Text(
+                text = icsOutcomeText(outcome),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(top = 8.dp),

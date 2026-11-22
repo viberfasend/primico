@@ -71,7 +71,10 @@ enum class ShortcutAction {
     SelectPrevious,
     SelectAll,
     OpenSelected,
-    ToggleSelected,
+    /** `x` — marks the cursor's row done. The name says what it does (#237). */
+    ToggleDone,
+    /** `Space` — flips the cursor's row in and out of the multi-select set (#237). */
+    ToggleSelection,
     DeleteSelected,
     SelectedPriority1,
     SelectedPriority2,
@@ -136,8 +139,10 @@ private val primary = Modifiers(primary = true)
  * The keys that act on the selected row.
  *
  * Bare letters, deliberately: this is a list, not a form, and `x` to tick something off is what a
- * keyboard-driven task list has meant since mutt. They reach the window only when nothing focused
- * has taken them first, so typing into the quick-add field never completes a task.
+ * keyboard-driven task list has meant since mutt. `Space` is the one key that builds the
+ * multi-select set without the pointer (#237): `x` keeps its long-standing meaning, so the set
+ * gets its own key rather than `x` being re-bound. They reach the window only when nothing
+ * focused has taken them first, so typing into the quick-add field never completes a task.
  */
 private val SELECTION_SHORTCUTS: List<Shortcut> = listOf(
     Shortcut(
@@ -165,7 +170,11 @@ private val SELECTION_SHORTCUTS: List<Shortcut> = listOf(
         Res.string.menu_open, "Enter",
     ),
     Shortcut(
-        ShortcutAction.ToggleSelected, Key.X, Modifiers(), ShortcutGroup.Selection,
+        ShortcutAction.ToggleSelection, Key.Spacebar, Modifiers(), ShortcutGroup.Selection,
+        Res.string.shortcut_toggle_selection, "Space",
+    ),
+    Shortcut(
+        ShortcutAction.ToggleDone, Key.X, Modifiers(), ShortcutGroup.Selection,
         Res.string.task_mark_done, "X",
     ),
     Shortcut(
@@ -286,7 +295,7 @@ val DesktopShortcutHints = ShortcutHints { hinted ->
             HintedAction.Settings -> ShortcutAction.Settings
             HintedAction.SyncNow -> ShortcutAction.SyncNow
             HintedAction.OpenTask -> ShortcutAction.OpenSelected
-            HintedAction.ToggleTask -> ShortcutAction.ToggleSelected
+            HintedAction.ToggleTask -> ShortcutAction.ToggleDone
             HintedAction.DeleteTask -> ShortcutAction.DeleteSelected
             HintedAction.DueToday -> ShortcutAction.SelectedDueToday
             HintedAction.DueTomorrow -> ShortcutAction.SelectedDueTomorrow

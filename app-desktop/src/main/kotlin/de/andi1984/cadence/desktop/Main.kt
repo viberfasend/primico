@@ -194,7 +194,10 @@ fun main() = application {
                     navigator.go(Route.TaskDetail(it.id))
                 }
 
-                ShortcutAction.ToggleSelected -> selection.withTask(state, viewModel::toggleTask)
+                // `x` keeps its long-standing meaning — mark the cursor's row done — and
+                // `Space` is the key that builds the multi-select set (#237).
+                ShortcutAction.ToggleDone -> selection.withTask(state, viewModel::toggleTask)
+                ShortcutAction.ToggleSelection -> selection.toggleCursorSelected()
                 ShortcutAction.DeleteSelected -> selection.withTask(state, viewModel::deleteTask)
                 ShortcutAction.SelectedPriority1 ->
                     selection.withTask(state) { viewModel.setPriority(it, Priority.P1) }

@@ -590,6 +590,8 @@
          button's word ("More", "Back") — which then read wrong on the sheet. -->
     <string name="shortcut_select_next">Next task</string>
     <string name="shortcut_select_previous">Previous task</string>
+    <!-- `Space` on the cursor's row: in or out of the multi-select set. `x` stays "mark done". -->
+    <string name="shortcut_toggle_selection">Toggle selection</string>
     <string name="shortcut_forward">Forward</string>
     <string name="shortcut_close">Close the detail, or go back</string>
     <!-- Only drawn where a shell bound a key to quick add; %1$s is the keys, e.g. "Ctrl+N". -->
@@ -604,6 +606,8 @@
     <string name="menu_open">Open</string>
     <string name="menu_due_date">Due date</string>
     <string name="menu_next_week">Next week</string>
+    <!-- The last entry of the due-date menus: opens a calendar instead of naming a day. -->
+    <string name="menu_pick_date">Pick date…</string>
     <string name="menu_duplicate">Duplicate</string>
     <string name="menu_copy_title">Copy title</string>
     <string name="menu_task_actions">Actions for %1$s</string>

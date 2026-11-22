@@ -84,6 +84,7 @@ task. A key with no row selected is not consumed.
 | `Ctrl`/`⌘`+`A` | Select every row in the list (multi-select; the action bar replaces the header) |
 | `Esc` | Leave multi-select when rows are selected, otherwise navigate back |
 | `Enter` | Open the selected task |
+| `Space` | Toggle the row in/out of the multi-select set (#237) |
 | `X` | Mark done / not done |
 | `Delete` | Delete (with the usual undo) |
 | `1` / `2` / `3` / `4` | Priority P1 / P2 / P3 / P4 |
@@ -94,11 +95,12 @@ task. A key with no row selected is not consumed.
 
 ### Multi-select (#40)
 
-Shift+click extends the selection from the keyboard cursor, Ctrl/`⌘`+click flips one row, and a
-drag started on a selected row carries the whole set. While the set is non-empty the action bar
-replaces the screen header: complete, priority, due date, move to project, add/remove tag,
-delete — each one batch write with one undo or one counted snackbar. On Android, long-press a row
-enters the same mode.
+Shift+click extends the selection from the keyboard cursor, Ctrl/`⌘`+click flips one row, `Space`
+flips the cursor's row (the keyboard's way in — `X` stays "mark done", #237), and a drag started on
+a selected row carries the whole set. While the set is non-empty the action bar replaces the
+screen header: complete, priority, due date (today / tomorrow / next week / pick a date…),
+move to project, add/remove tag, delete — each one batch write with one undo or one counted
+snackbar. On Android, long-press a row enters the same mode.
 
 ### Inside the command palette
 

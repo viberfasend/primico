@@ -35,6 +35,8 @@ data class RowInteractions(
     val onSetDueDate: (Task, LocalDate?) -> Unit = { _, _ -> },
     val onMoveTaskToProject: (Task, String?) -> Unit = { _, _ -> },
     val onMoveTaskToSection: (Task, String?) -> Unit = { _, _ -> },
+    /** Puts the tag on the task or takes it off — the right-click menu's Tags page. */
+    val onToggleTaskTag: (Task, String) -> Unit = { _, _ -> },
     val onDuplicateTask: (Task) -> Unit = {},
     val onDeleteTask: (Task) -> Unit = {},
     /**

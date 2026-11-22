@@ -6,6 +6,7 @@
     <string name="nav_upcoming">Upcoming</string>
     <string name="nav_inbox">Inbox</string>
     <string name="nav_projects">Projects</string>
+    <string name="nav_calendar">Calendar</string>
     <string name="nav_add_task">Task</string>
 
     <!-- ── Shared actions ──────────────────────────────────────────────────────────── -->

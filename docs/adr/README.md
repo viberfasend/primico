@@ -19,6 +19,7 @@ The code tells you *what*; an ADR tells you *why not the obvious alternative*.
 | [0005](0005-neon-sync.md) | The sync backend moves from Supabase to Neon (Data API + Neon Auth), realtime becomes a poll | Accepted | 2026-08-25 |
 | [0006](0006-task-reminders.md) | A task carries a list of reminders with several trigger kinds, packed into one column on the task | Accepted | 2026-10-25 |
 | [0007](0007-outdoor-section-weather.md) | An outdoor section on Today driven by one coarse dry/raining flag from Open-Meteo, behind an opt-in per-device setting | Accepted | 2026-11-17 |
+| [0008](0008-planning-surfaces.md) | Planning surfaces: month grid, recurrence renders as existing rows never projected, first day of week from locale, day cell as drop target | Accepted | 2026-11-22 |
 
 ```mermaid
 flowchart LR
@@ -30,6 +31,7 @@ flowchart LR
   A2 -. "decisions 6, 12 superseded" .-> A5
   A2 --> A6["0006<br/>flexible reminders"]
   A4 --> A7["0007<br/>outdoor weather section"]
+  A7 --> A8["0008<br/>planning surfaces"]
 ```
 
 ## Numbers that are already spoken for
@@ -40,7 +42,6 @@ number is not reserved by the plan:
 
 - the adaptive shell, one navigator on every platform ([#48](https://github.com/viberfasend/primico/issues/48));
 - the `TaskQuery` grammar and where saved views are stored ([#149](https://github.com/viberfasend/primico/issues/149));
-- how recurrence is drawn on a calendar ([#148](https://github.com/viberfasend/primico/issues/148));
 - end-to-end encrypted sync ([#152](https://github.com/viberfasend/primico/issues/152));
 - one desktop process, and launcher actions from the dock, the app menu and the jump list
   ([plan](../plans/desktop-launcher-actions.md)).

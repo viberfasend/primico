@@ -98,6 +98,7 @@ enum class ShortcutAction {
     GoUpcoming,
     GoInbox,
     GoProjects,
+    GoCalendar,
 }
 
 data class Shortcut(
@@ -267,6 +268,10 @@ val CADENCE_SHORTCUTS: List<Shortcut> = listOf(
         ShortcutAction.GoProjects, Key.Four, primary, ShortcutGroup.Navigation,
         Res.string.nav_projects, "4",
     ),
+    Shortcut(
+        ShortcutAction.GoCalendar, Key.C, Modifiers(primary = true, shift = true), ShortcutGroup.Navigation,
+        Res.string.nav_calendar, "C",
+    ),
 ) + SELECTION_SHORTCUTS
 
 /** The action [event] asks for, or null if the table has nothing for it. */
@@ -301,6 +306,7 @@ val DesktopShortcutHints = ShortcutHints { hinted ->
             HintedAction.DueTomorrow -> ShortcutAction.SelectedDueTomorrow
             HintedAction.DueNextWeek -> ShortcutAction.SelectedDueNextWeek
             HintedAction.NoDueDate -> ShortcutAction.SelectedNoDueDate
+            HintedAction.Calendar -> ShortcutAction.GoCalendar
         },
     )
 }

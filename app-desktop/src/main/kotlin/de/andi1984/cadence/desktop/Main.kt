@@ -185,6 +185,7 @@ fun main() = application {
                 ShortcutAction.GoUpcoming -> { navigator.switchTo(Route.Upcoming); true }
                 ShortcutAction.GoInbox -> { navigator.switchTo(Route.Inbox); true }
                 ShortcutAction.GoProjects -> { navigator.switchTo(Route.Projects); true }
+                ShortcutAction.GoCalendar -> { navigator.switchTo(Route.Calendar); true }
 
                 // The selected row's own keys. Each resolves the id to a live task first: the
                 // selection is a row that was on screen, and a pull may have deleted it since.

@@ -6,6 +6,7 @@
     <string name="nav_upcoming">Demnächst</string>
     <string name="nav_inbox">Eingang</string>
     <string name="nav_projects">Projekte</string>
+    <string name="nav_calendar">Kalender</string>
     <string name="nav_add_task">Aufgabe</string>
 
     <!-- ── Gemeinsame Aktionen ─────────────────────────────────────────────────────── -->

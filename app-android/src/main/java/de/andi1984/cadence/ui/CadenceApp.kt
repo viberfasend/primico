@@ -43,6 +43,7 @@ import de.andi1984.cadence.ui.components.FittedLabel
 import de.andi1984.cadence.ui.components.SyncControls
 import de.andi1984.cadence.ui.components.SyncFailureSnackbar
 import de.andi1984.cadence.ui.components.UndoSnackbar
+import de.andi1984.cadence.ui.calendar.MonthGridScreen
 import de.andi1984.cadence.ui.detail.TaskDetailScreen
 import de.andi1984.cadence.ui.platform.AppInfo
 import de.andi1984.cadence.ui.inbox.InboxScreen
@@ -70,6 +71,7 @@ object Routes {
     const val UPCOMING = "upcoming"
     const val INBOX = "inbox"
     const val PROJECTS = "projects"
+    const val CALENDAR = "calendar"
     const val SEARCH = "search"
     const val SETTINGS = "settings"
     const val TRIAGE = "triage"
@@ -152,6 +154,7 @@ fun CadenceApp(
         BottomDestination(Routes.UPCOMING, Res.string.nav_upcoming, AppIcons.CalendarMonth),
         BottomDestination(Routes.INBOX, Res.string.nav_inbox, AppIcons.Inbox),
         BottomDestination(Routes.PROJECTS, Res.string.nav_projects, AppIcons.Folder),
+        BottomDestination(Routes.CALENDAR, Res.string.nav_calendar, AppIcons.CalendarMonth),
     )
     val showChrome = currentRoute in destinations.map { it.route }
     val inboxCount = state.inboxTasks().count { !it.isDone }
@@ -272,6 +275,32 @@ fun CadenceApp(
                         today = today,
                         onTaskClick = { navController.navigate(Routes.task(it.id)) },
                         onToggle = viewModel::toggleTask,
+                        syncControls = syncControls,
+                    )
+                }
+                composable(Routes.CALENDAR) {
+                    MonthGridScreen(
+                        state = state,
+                        today = today,
+                        onTaskClick = { navController.navigate(Routes.task(it.id)) },
+                        onDayClick = { date ->
+                            // Open the day's list - for now, navigate to Upcoming with the date
+                            // In the future, we could have a dedicated day list screen
+                            navController.navigate(Routes.UPCOMING)
+                        },
+                        onToggle = viewModel::toggleTask,
+                        onReschedule = { taskIds, date ->
+                            taskIds.forEach { taskId ->
+                                state.tasks.firstOrNull { it.id == taskId }?.let { task ->
+                                    viewModel.setDueDate(task, date)
+                                }
+                            }
+                        },
+                        onSortChange = viewModel::setSortMode,
+                        onSearch = { navController.navigate(Routes.SEARCH) },
+                        onSettings = { navController.navigate(Routes.SETTINGS) },
+                        onPreviousMonth = {},
+                        onNextMonth = {},
                         syncControls = syncControls,
                     )
                 }

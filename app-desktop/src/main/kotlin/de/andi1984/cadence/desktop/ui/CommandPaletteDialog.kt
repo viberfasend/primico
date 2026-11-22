@@ -308,6 +308,7 @@ private fun paletteCommands(
         Triple(Route.Upcoming, stringResource(Res.string.nav_upcoming), ShortcutAction.GoUpcoming),
         Triple(Route.Inbox, stringResource(Res.string.nav_inbox), ShortcutAction.GoInbox),
         Triple(Route.Projects, stringResource(Res.string.nav_projects), ShortcutAction.GoProjects),
+        Triple(Route.Calendar, stringResource(Res.string.nav_calendar), ShortcutAction.GoCalendar),
         Triple(Route.Search, stringResource(Res.string.search_title), ShortcutAction.Search),
         Triple(Route.Settings, stringResource(Res.string.settings_title), ShortcutAction.Settings),
     )

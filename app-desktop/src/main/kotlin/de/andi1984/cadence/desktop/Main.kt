@@ -127,9 +127,10 @@ fun main() = application {
 
     Window(
         onCloseRequest = {
-            // The one exit path (`AppContainer.shutdown`): a last fire-and-forget sync while
-            // there is still a process to run it (ADR 0002, decision 11), then the settings
-            // flush `exitApplication()` must not race (#104), then the core's own teardown.
+            // The one exit path (`AppContainer.shutdown`): a last sync round, run with a
+            // three-second bound rather than launched — a launched round would be cancelled by
+            // the very scope teardown that follows it (#216) — then the settings flush
+            // `exitApplication()` must not race (#104), then the core's own teardown.
             // `viewModel.close()` is not [AppContainer]'s to run — the ViewModel's scope is
             // `main()`'s, not the container's.
             rememberWindowBounds()

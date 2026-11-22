@@ -83,6 +83,9 @@ dependencies {
     testImplementation(libs.test.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(kotlin("test"))
+    // The shutdown test feeds the sync engine hand-written responses through Ktor's own fake
+    // engine — the same HTTP fake `:core`'s `CadenceSyncEngineTest` uses (see SyncFakes.kt).
+    testImplementation(libs.ktor.client.mock)
 }
 
 /**

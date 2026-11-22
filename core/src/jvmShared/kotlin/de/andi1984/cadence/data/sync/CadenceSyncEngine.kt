@@ -209,8 +209,11 @@ class CadenceSyncEngine(
     }
 
     /**
-     * A round nobody waits for — the app-start, foreground, stop and window-close triggers
-     * (ADR 0002, decision 11).
+     * A round nobody waits for — the app-start, foreground and stop triggers (ADR 0002,
+     * decision 11). The desktop's window-close trigger deliberately does *not* use this: it
+     * runs its last round bounded on the quitting thread instead (see `:app-desktop`'s
+     * `AppContainer.shutdown`, #216), because a round launched here would be cancelled by the
+     * application-scope teardown that follows the close.
      *
      * It runs on this engine's own scope, which is the *application* scope in both shells, rather
      * than on the caller's: the caller here is a lifecycle callback or a window that is closing,

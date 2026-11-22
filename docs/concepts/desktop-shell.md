@@ -164,7 +164,9 @@ a second before quitting is exactly the one to keep. Both ways out, the window's
 `onCloseRequest` and the tray menu's Quit, call `AppContainer.shutdown()`, which does three things
 in order:
 
-1. `syncEngine.syncInBackground()` — a last fire-and-forget round,
+1. one last sync round, run with a three-second bound (`runBlocking { withTimeoutOrNull(3s) {
+   syncEngine.syncOnce() } }`) — launched on the application scope instead, it would be cancelled
+   by the scope teardown in step 3 at its first suspension point and never send anything (#216),
 2. `settingsStore.flush()` — block until pending settings writes have landed,
 3. `core.close()` — cancel the application scope and close the database driver.
 

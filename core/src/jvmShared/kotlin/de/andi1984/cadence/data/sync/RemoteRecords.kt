@@ -161,6 +161,8 @@ data class RemoteReminder(
     /** ISO local date-time, e.g. `2026-10-26T09:00`. */
     @SerialName("date_time") val dateTime: String? = null,
     val repeat: RemoteRepeat? = null,
+    /** ISO instant, e.g. `2026-08-05T12:00:00Z`, or null if not acknowledged. */
+    @SerialName("acknowledged_at") val acknowledgedAt: String? = null,
 )
 
 @Serializable
@@ -312,11 +314,13 @@ private fun Reminder.toRemote() = RemoteReminder(
     at = (trigger as? ReminderTrigger.DaysBeforeDue)?.at?.toString(),
     dateTime = (trigger as? ReminderTrigger.At)?.dateTime?.toString(),
     repeat = repeat?.let { RemoteRepeat(it.everyMinutes, it.count) },
+    acknowledgedAt = acknowledgedAt?.toString(),
 )
 
 /** Unknown `kind` decodes to null and is skipped by the caller. */
 private fun RemoteReminder.toDomain(): Reminder? {
     val repeat = repeat?.let { ReminderRepeat(it.everyMinutes, it.count) }
+    val acknowledgedAt = acknowledgedAt.parseOrNull { Instant.parse(it) }
     val trigger = when (kind) {
         "beforeDueTime" -> minutes?.let { ReminderTrigger.BeforeDueTime(it) }
         "daysBeforeDue" -> {
@@ -327,7 +331,7 @@ private fun RemoteReminder.toDomain(): Reminder? {
         "at" -> dateTime.parseOrNull { LocalDateTime.parse(it) }?.let { ReminderTrigger.At(it) }
         else -> null
     } ?: return null
-    return Reminder(trigger, repeat)
+    return Reminder(trigger, repeat, acknowledgedAt)
 }
 
 private fun RecurrenceRule.toRemote() = RemoteRecurrence(

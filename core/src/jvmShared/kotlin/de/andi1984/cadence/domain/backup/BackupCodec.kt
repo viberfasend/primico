@@ -314,6 +314,8 @@ internal data class BackupReminder(
     /** ISO local date-time, e.g. `2026-10-26T09:00`. */
     val dateTime: String? = null,
     val repeat: BackupRepeat? = null,
+    /** ISO instant, e.g. `2026-08-05T12:00:00Z`, or null if not acknowledged. */
+    val acknowledgedAt: String? = null,
 )
 
 @Serializable
@@ -455,11 +457,13 @@ private fun Reminder.toBackup() = BackupReminder(
     at = (trigger as? ReminderTrigger.DaysBeforeDue)?.at?.toString(),
     dateTime = (trigger as? ReminderTrigger.At)?.dateTime?.toString(),
     repeat = repeat?.let { BackupRepeat(it.everyMinutes, it.count) },
+    acknowledgedAt = acknowledgedAt?.toString(),
 )
 
 /** Unknown `kind` decodes to null and is skipped by the caller. */
 private fun BackupReminder.toDomain(): Reminder? {
     val repeat = repeat?.let { ReminderRepeat(it.everyMinutes, it.count) }
+    val acknowledgedAt = acknowledgedAt.parseOrNull { Instant.parse(it) }
     val trigger = when (kind) {
         "beforeDueTime" -> minutes?.let { ReminderTrigger.BeforeDueTime(it) }
         "daysBeforeDue" -> {
@@ -470,7 +474,7 @@ private fun BackupReminder.toDomain(): Reminder? {
         "at" -> dateTime.parseOrNull { LocalDateTime.parse(it) }?.let { ReminderTrigger.At(it) }
         else -> null
     } ?: return null
-    return Reminder(trigger, repeat)
+    return Reminder(trigger, repeat, acknowledgedAt)
 }
 
 private fun RecurrenceRule.toBackup() = BackupRecurrence(

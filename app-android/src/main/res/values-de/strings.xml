@@ -5,6 +5,7 @@
     <string name="reminder_channel_description">Erinnerungen für fällige Aufgaben</string>
     <string name="reminder_content_text">Heute fällig</string>
     <string name="reminder_at_content_text">Erinnerung</string>
+    <string name="reminder_notification_text">Erinnerung für diese Aufgabe</string>
     <plurals name="reminder_lead_content_text">
         <item quantity="one">In %1$d Minute</item>
         <item quantity="other">In %1$d Minuten</item>
@@ -17,6 +18,11 @@
         <item quantity="one">1 Tag überfällig</item>
         <item quantity="other">%1$d Tage überfällig</item>
     </plurals>
+    <string name="reminder_action_done">Erledigt</string>
+    <string name="reminder_action_snooze">Snooze</string>
+    <string name="reminder_action_snooze_10min">10 Min. später</string>
+    <string name="reminder_action_snooze_1h">1 Std. später</string>
+    <string name="reminder_action_snooze_tomorrow">Morgen</string>
 
     <string name="widget_today_title">Heute</string>
     <string name="widget_today_empty">Heute nichts fällig — zum Anlegen tippen</string>

@@ -299,4 +299,77 @@ class ReminderPlannerTest {
         assertEquals(2, plan.size)
         assertEquals(setOf("lead:10", "d0@09:00#0"), plan.map { it.slot }.toSet())
     }
+
+    // ── Acknowledged reminders ─────────────────────────────────────────────────────
+
+    @Test
+    fun `an acknowledged reminder produces no instants`() {
+        val acknowledged = Instant.parse("2026-08-12T10:00:00Z")
+        val reminder = Reminder(
+            ReminderTrigger.DaysBeforeDue(0, LocalTime.of(18, 0)),
+            acknowledgedAt = acknowledged,
+        )
+
+        val plan = ReminderPlanner.plan(
+            listOf(task(reminders = listOf(reminder))),
+            emptyList(),
+            zone,
+        )
+
+        assertEquals(emptyList<ReminderInstant>(), plan)
+    }
+
+    @Test
+    fun `a reminder with a repeat that is acknowledged produces no instants`() {
+        val acknowledged = Instant.parse("2026-08-12T10:00:00Z")
+        val reminder = Reminder(
+            ReminderTrigger.DaysBeforeDue(0, LocalTime.of(9, 0)),
+            ReminderRepeat(10, 3),
+            acknowledgedAt = acknowledged,
+        )
+
+        val plan = ReminderPlanner.plan(
+            listOf(task(reminders = listOf(reminder))),
+            emptyList(),
+            zone,
+        )
+
+        assertEquals(emptyList<ReminderInstant>(), plan)
+    }
+
+    @Test
+    fun `an acknowledged reminder among others only skips itself`() {
+        val acknowledged = Instant.parse("2026-08-12T10:00:00Z")
+        val acknowledgedReminder = Reminder(
+            ReminderTrigger.DaysBeforeDue(0, LocalTime.of(9, 0)),
+            acknowledgedAt = acknowledged,
+        )
+        val otherReminder = Reminder(ReminderTrigger.DaysBeforeDue(0, LocalTime.of(18, 0)))
+
+        val plan = ReminderPlanner.plan(
+            listOf(task(reminders = listOf(acknowledgedReminder, otherReminder))),
+            emptyList(),
+            zone,
+        )
+
+        assertEquals(1, plan.size)
+        assertEquals("d0@18:00#0", plan.single().slot)
+    }
+
+    @Test
+    fun `a null acknowledgedAt means the reminder fires normally`() {
+        val reminder = Reminder(
+            ReminderTrigger.DaysBeforeDue(0, LocalTime.of(9, 0)),
+            acknowledgedAt = null,
+        )
+
+        val plan = ReminderPlanner.plan(
+            listOf(task(reminders = listOf(reminder))),
+            emptyList(),
+            zone,
+        )
+
+        assertEquals(1, plan.size)
+        assertEquals("d0@09:00#0", plan.single().slot)
+    }
 }

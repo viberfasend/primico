@@ -82,6 +82,8 @@ object ReminderPlanner {
 
         // `distinct()` is the dedupe rule: identical reminders on one task collapse to one alarm.
         task.reminders.distinct().forEach { reminder ->
+            // Skip reminders that have been acknowledged (dismissed).
+            if (reminder.acknowledgedAt != null) return@forEach
             val trigger = reminder.trigger
             val base: Instant? = when (trigger) {
                 is ReminderTrigger.BeforeDueTime -> {
